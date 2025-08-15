@@ -7,8 +7,6 @@ import jax  # type: ignore[import-not-found]
 from jax.typing import ArrayLike  # type: ignore[import-not-found]
 import jax.numpy as jnp  # type: ignore[import-not-found]
 
-jax.config.update("jax_enable_x64", True)
-
 
 MatVec = typing.Callable[[ArrayLike], ArrayLike]
 
@@ -155,6 +153,7 @@ def _bidiagonalize_primal(num_matvecs: int, reorthogonalize: bool = True):
             upper=num_matvecs,
             body_fun=body_fun,
             init_val=CarryState(rs=rs, ls=ls, as_=as_, bs=bs, length=init_length),
+            unroll=False,
         )
 
         # Create primal output
@@ -437,23 +436,85 @@ def bidiagonalize(
 
         upper_tri = jnp.triu(jnp.ones((k, k + 1)))
 
+        def vecmat(v, *params_):
+            _, vecmat_fun = jax.vjp(lambda v_: matvec(v_, *params_), rs[:, 0])
+            return vecmat_fun(v)[0]
+
+        body_fun = make_body_fun(
+            k,
+            rs,
+            ls,
+            upper_tri,
+            das,
+            matvec_params,
+            matvec,
+            dls,
+            dbs,
+            as_,
+            bs,
+            drs,
+            just_in_case,
+            res,
+            gamma,
+            vecmat,
+        )
+
+        stuff = jax.tree.map(jnp.zeros_like, matvec_params)
+        init = CarryState(
+            up_i_p_1=jnp.zeros(n),
+            down_i=down_k,
+            param_incremental_grads=stuff,
+            Sigma=jnp.zeros((k, k)),
+            Omega=jnp.zeros((k, k)),
+        )
+
+        output: CarryState = jax.lax.fori_loop(
+            lower=0,
+            upper=k,
+            body_fun=body_fun,  # todo partial application with ls and rs etc.
+            init_val=init,
+            unroll=False,
+        )
+
+        kappa = output.down_i
+        param_grads_out = output.param_incremental_grads
+
+        return (
+            -c * kappa,
+            *param_grads_out,
+        )
+
+    def make_body_fun(
+        k,
+        rs,
+        ls,
+        upper_tri,
+        das,
+        matvec_params,
+        matvec,
+        dls,
+        dbs,
+        as_,
+        bs,
+        drs,
+        just_in_case,
+        res,
+        gamma,
+        vecmat,
+    ):
         def body_fun(i_in: int, carry: CarryState):
             # 'i_in' will go from 0 to k-1 (inclusive)
-            i = k - 1 - i_in
             # so 'i' will go from k-1 to 0 (inclusive)
+            i = k - 1 - i_in
 
             # Reortho the "down" contained in the carry
             down_i = carry.down_i
-            correction = jnp.zeros(shape=k).at[i].set(das[i])
             if reorthogonalize and also_reorthogonalize_vjp:
-                # print("BEFORE:\n{}", upper_tri[:, i + 1] * (rs.T @ down_i) - correction)
                 down_i = (
                     down_i
                     - rs @ (upper_tri[:, i + 1] * (rs.T @ down_i))
                     + rs[:, i] * das[i]
                 )
-            # print("AFTER:\n{}", upper_tri[:, i + 1] * (rs.T @ down_i) - correction)
-            # print()
 
             A_down_i, vjp_l = jax.vjp(lambda p: matvec(down_i, *p), matvec_params)
             (new_param_grad_incr_down,) = vjp_l(ls[:, i])
@@ -475,23 +536,12 @@ def bidiagonalize(
             up_i /= as_[i]
             # Reortho the "up" we have just produced
 
-            correction = jnp.zeros(shape=k).at[i - 1].set(dbs[i - 1])
-            # print("BEFORE: ls.T @ up \n{}", ls.T @ up_i - correction)
-            # print(upper_tri[:, i] * (ls.T @ up_i) - correction)
             if reorthogonalize and also_reorthogonalize_vjp:
                 up_i = (
                     up_i
                     - ls @ (upper_tri[:, i] * (ls.T @ up_i))
                     + ls[:, i - 1] * dbs[i - 1]
                 )
-                # print(upper_tri[:, i] * (ls.T @ up_i) - correction)
-            # print()
-
-            # print("AFTER: ls.T @ up \n{}", ls.T @ up_i - correction)
-
-            def vecmat(v, *params_):
-                _, vecmat_fun = jax.vjp(lambda v_: matvec(v_, *params_), rs[:, 0])
-                return vecmat_fun(v)[0]
 
             AT_up_i, vjp_r = jax.vjp(lambda p: vecmat(up_i, *p), matvec_params)
             (new_param_grad_incr_up,) = vjp_r(rs[:, i])
@@ -514,7 +564,7 @@ def bidiagonalize(
             downs_i_m_1 /= bs[i - 1]
 
             incremented = jax.tree_util.tree_map(
-                lambda running_sum, up, down: running_sum + up + down,
+                lambda running_sum, up, down: running_sum.at[:].add(up + down),
                 carry.param_incremental_grads,
                 new_param_grad_incr_up,
                 new_param_grad_incr_down,
@@ -528,28 +578,7 @@ def bidiagonalize(
                 Sigma=Sigma,
             )
 
-        output: CarryState = jax.lax.fori_loop(
-            lower=0,
-            upper=k,
-            body_fun=body_fun,  # todo partial application with ls and rs etc.
-            init_val=CarryState(
-                up_i_p_1=jnp.zeros(n),
-                down_i=down_k,
-                param_incremental_grads=jax.tree.map(
-                    lambda leaf: jnp.zeros_like(leaf, dtype=float), matvec_params
-                ),
-                Sigma=jnp.zeros((k, k)),
-                Omega=jnp.zeros((k, k)),
-            ),
-        )
-
-        kappa = output.down_i
-        param_grads_out = output.param_incremental_grads
-
-        return (
-            -c * kappa,
-            *param_grads_out,
-        )
+        return body_fun
 
     if custom_vjp:
         _bidiagonalize = jax.custom_vjp(

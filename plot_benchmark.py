@@ -247,7 +247,7 @@ def plot_profiles(
         # Compile subplot
         ax2.set_title(f"{title_prefix}: Compile time")
         ax2.plot(k, forward_c, linestyle="--", color="black", label="Forward")
-        ax2.set_yscale("log")
+        # ax2.set_yscale("log")
         ax2.plot(k, adjoint_c, color="#1f77b4", label="Adjoint (custom)")
         ax2.plot(k, backprop_c, color="#ff7f0e", label="Backprop (autodiff)")
         ax2.set_xlabel("Krylov-space depth k")

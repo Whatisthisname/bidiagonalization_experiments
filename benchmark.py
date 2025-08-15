@@ -14,9 +14,6 @@ from benchmark_plot_utils import suite_sparse_load
 import jax.experimental.sparse
 
 
-jax.config.update("jax_enable_x64", True)
-
-
 def _bidiag_loss(alphas, betas, ls, rs, res, c):
     flat = jax.flatten_util.ravel_pytree((alphas, betas, ls, rs, res, c))[0]
     # Fixed rng for reproducibility across runs
@@ -210,18 +207,18 @@ def _measure_profile(
         fwd_steady.append(time.perf_counter() - t0)
 
     # Backward timings
-    _, bar = jax.value_and_grad(loss_fn)(out)
-    _, vjp_fn = jax.vjp(fwd_fn, v, params)
+    _, cotan = jax.value_and_grad(loss_fn)(out)
+    _, vjp_fn = jax.vjp(fwd_fn_jit, v, params)
     vjp_fn = jax.jit(vjp_fn)
     t0 = time.perf_counter()
-    b2 = vjp_fn(bar)
+    b2 = vjp_fn(cotan)
     _block_until_ready_pytree(b2)
     bwd_compile = time.perf_counter() - t0
 
     bwd_steady = []
     for _ in range(steady_repeats):
         t0 = time.perf_counter()
-        y = vjp_fn(bar)
+        y = vjp_fn(cotan)
         _block_until_ready_pytree(y)
         bwd_steady.append(time.perf_counter() - t0)
 
@@ -237,7 +234,7 @@ def _measure_profile(
         bwd_compile_times = []
         for _ in range(steady_repeats // 2):
             t0 = time.perf_counter()
-            _ = jax.jit(jax.vjp(fwd_fn, v, params)[1]).lower(bar).compile()
+            _ = jax.jit(jax.vjp(fwd_fn, v, params)[1]).lower(cotan).compile()
             bwd_compile_times.append(time.perf_counter() - t0)
         bwd_compile_s = float(np.mean(bwd_compile_times))
 
@@ -475,9 +472,9 @@ if __name__ == "__main__":
     # Also run the same sweeps for selected SuiteSparse matrices (shape implied by file)
     for alg in ["bidiag"]:
         for reorth in [True]:
-            for custom_vjp in [False]:
+            for custom_vjp in [True]:
                 for matrix_name in ["1138_bus"]:
-                    for k in np.linspace(20, 500, 10, dtype=int):
+                    for k in np.linspace(20, 250, 4, dtype=int):
                         profiles.append(
                             {
                                 "algorithm": alg,
@@ -485,7 +482,7 @@ if __name__ == "__main__":
                                 "custom_vjp": custom_vjp,
                                 "k": int(k),
                                 "matrix": matrix_name,
-                                "dtype": "float64",
+                                "dtype": "float32",
                                 "seed": 0,
                             }
                         )

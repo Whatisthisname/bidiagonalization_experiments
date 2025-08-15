@@ -37,8 +37,6 @@ plt.rcParams.update(axes.legend())
 plt.rcParams.update(figsizes.iclr2024(rel_width=0.4, height_to_width_ratio=1.25))
 plt.rcParams.update(fontsizes.iclr2024(default_smaller=2))
 
-jax.config.update("jax_enable_x64", True)
-
 key = jax.random.PRNGKey(1)
 key_A, key_v = jax.random.split(key, num=2)
 
@@ -73,13 +71,13 @@ styles = {
 for (use_hessenberg, custom, reortho, match), label in tqdm.tqdm(
     setups.items(), desc="Testing setups"
 ):
-    ns = jnp.arange(8, 20, step=4)
+    ns = jnp.arange(8, 64, step=4)
     loss = []
     # bd_loss = []
     for n in tqdm.tqdm(ns, desc=f"Testing {label}", leave=False):
-        n = 64
         n = int(n)
-        A = hilbert_matrix(n)[:, : n // 2]
+        # A = hilbert_matrix(n)[:, : n // 2]
+        A = jax.random.normal(key_A, shape=(n, n // 2))
 
         bd_func = bidiagonalize(
             num_matvecs=n // 2,
@@ -127,7 +125,6 @@ for (use_hessenberg, custom, reortho, match), label in tqdm.tqdm(
                     result.bs,
                     result.res,
                 )
-                # jax.debug.print("HELLO: \n{}", ls.T @ ls)
 
             B = jnp.diag(alphas) + jnp.diag(betas, k=1)
             return jax.flatten_util.ravel_pytree(ls @ B @ rs.T)[0]
@@ -144,6 +141,8 @@ for (use_hessenberg, custom, reortho, match), label in tqdm.tqdm(
         loss.append(error)
 
     loss = jnp.asarray(loss)
+
+    print("loss and hessenberg", use_hessenberg, loss)
 
     plt.semilogy(
         ns, loss, label=label, **styles[(use_hessenberg, custom, reortho, match)]

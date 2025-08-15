@@ -4,9 +4,6 @@ import jax.numpy as jnp
 from jax import Array
 import jax
 
-jax.config.update("jax_enable_x64", True)
-jnp.printoptions(precision=None)
-
 
 def arnoldi(matvecs_num: int, custom_vjp: bool, reorthogonalize: bool):
     def estimate(matvec, v0, *params):
