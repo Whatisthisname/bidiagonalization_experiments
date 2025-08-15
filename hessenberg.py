@@ -5,6 +5,7 @@ from jax import Array
 import jax
 
 jax.config.update("jax_enable_x64", True)
+jnp.printoptions(precision=None)
 
 
 def arnoldi(matvecs_num: int, custom_vjp: bool, reorthogonalize: bool):
@@ -108,11 +109,16 @@ class _DecompResult(NamedTuple):
 
 
 def hessenberg(
-    num_matvecs, /, *, reortho: str, custom_vjp: bool = True, reortho_vjp: str = "match"
+    num_matvecs,
+    /,
+    *,
+    reortho: bool,
+    custom_vjp: bool = True,
+    reortho_vjp: str = "match",
 ):
     r"""Construct a **Hessenberg-factorisation** via the Arnoldi iteration.
 
-    Uses pre-allocation, and full reorthogonalisation if `reortho` is set to `"full"`.
+    Uses pre-allocation, and full reorthogonalisation if `reortho` is set to True.
     It tends to be a good idea to use full reorthogonalisation.
 
     This algorithm works for **arbitrary matrices**.
@@ -135,10 +141,6 @@ def hessenberg(
         }
         ```
     """
-    reortho_expected = ["none", "full"]
-    if reortho not in reortho_expected:
-        msg = f"Unexpected input for {reortho}: either of {reortho_expected} expected."
-        raise TypeError(msg)
 
     def estimate(matvec, real_size, v, *params):
         matvec_convert, aux_args = jax.closure_convert(matvec, v, *params)
@@ -180,8 +182,7 @@ def hessenberg(
 
 def _hessenberg_forward(matvec, real_size, num_matvecs, v, *params, reortho: str):
     if num_matvecs < 0 or num_matvecs > len(v):
-        msg = "fuck"  # error_num_matvecs(num_matvecs, maxval=len(v), minval=0)
-        raise ValueError(msg)
+        raise ValueError("fuck")
 
     # Initialise the variables
     (n,), k = jnp.shape(v), num_matvecs
@@ -189,11 +190,6 @@ def _hessenberg_forward(matvec, real_size, num_matvecs, v, *params, reortho: str
     H = jnp.zeros((k, k), dtype=v.dtype)
     initlength = jnp.sqrt(v @ v)
     init = (Q, H, v, initlength)
-
-    if num_matvecs == 0:
-        return _DecompResult(
-            Q_tall=Q, J_small=H, residual=v, init_length_inv=1 / initlength
-        )
 
     # Fix the step function
     def forward_step(i, val):
@@ -216,6 +212,7 @@ def _hessenberg_forward_step(Q, H, v, length, matvec, *params, idx, reortho: str
 
     # Orthonormalise
     h = Q.T @ v
+
     v = v - Q @ h
 
     # Re-orthonormalise
@@ -413,7 +410,7 @@ def _hessenberg_adjoint_step(
     reortho: str,
 ):
     # Reorthogonalise
-    if reortho == "full":
+    if reortho:
         # Get rid of the (I_ll o Sigma) term by multiplying with a mask
         Q_masked = reortho_mask_k[None, :] * Q
         rhs_masked = reortho_mask_k * dH_k

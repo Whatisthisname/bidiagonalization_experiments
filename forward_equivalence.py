@@ -1,6 +1,6 @@
 import jax
 import jax.numpy as jnp
-from arnoldi import arnoldi, hessenberg
+from hessenberg import arnoldi, hessenberg
 from matfree import decomp
 
 n = 4

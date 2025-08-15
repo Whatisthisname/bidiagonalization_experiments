@@ -1,25 +1,26 @@
 import jax
 import jax.numpy as jnp
-from arnoldi import hessenberg
+from hessenberg import hessenberg
 from matfree import decomp
-
+from utils import hilbert_matrix
 import os
 import sys
-from bidiag_new_adjoint import bidiagonalize as bidiagonalize_new_adjoint, BidiagOutput
+from bidiag import bidiagonalize, BidiagOutput
 
-jnp.printoptions(precision=2)
+jnp.printoptions(precision=None)
 
 jax.config.update("jax_enable_x64", True)
 
 sys.path.append(os.path.dirname(os.path.dirname(__file__)))
 
 
-n = 500
-m = 400
+n = 10
+m = 10
 
-num_matvecs = 400
+num_matvecs = 8
 
 A = jax.random.normal(key=jax.random.PRNGKey(0), shape=(n, m))
+A = hilbert_matrix(n)
 
 
 def matvec(v, *params):
@@ -33,13 +34,6 @@ def matvec_sym(v0, *params):
     return jnp.concat((A @ lower, A.T @ upper))
 
 
-v = jax.random.normal(jax.random.PRNGKey(0), shape=(m))
-v_aug = jnp.concat([jnp.zeros(n), v])
-
-hess_func = hessenberg(2 * num_matvecs, reortho="full", custom_vjp=True)
-hess_result = hess_func(matvec_sym, (n, m), v_aug, A)
-
-
 def bidiag_loss(alphas, betas, ls, rs, res, c):
     flattened = jax.flatten_util.ravel_pytree((alphas, betas, ls, rs, res, c))[0]
     return jnp.sum(jax.random.normal(jax.random.PRNGKey(0), len(flattened)) * flattened)
@@ -49,7 +43,7 @@ def extract_hess_results(result: decomp._DecompResult) -> tuple:
     rlrlrl = result.Q_tall
     ls = rlrlrl[:n, 1::2]
     rs = rlrlrl[n:, 0::2]
-    ababab = jnp.diag(result.J_small, k=1)
+    ababab = jnp.diag(result.J_small, k=-1)
     alphas = ababab[::2]
     betas = ababab[1::2]
     res = result.residual[n:]
@@ -80,8 +74,14 @@ def check_bidiag_properties(alphas, betas, ls, rs, res, c):
     print("L inner error:", jnp.linalg.norm(l_inner - expected))
 
 
-print()
-print("hess VJP:")
+v = jax.random.normal(jax.random.PRNGKey(0), shape=(m))
+v_aug = jnp.concat([jnp.zeros(n), v])
+
+# Look at augmented version:
+hess_func = hessenberg(
+    2 * num_matvecs, custom_vjp=True, reortho="full", reortho_vjp="match"
+)
+hess_result = hess_func(matvec_sym, (n, m), v_aug, A)
 
 hess_loss, hess_grad = jax.value_and_grad(padded_hess_loss)(hess_result)
 
@@ -89,44 +89,79 @@ _, vjpfun = jax.vjp(lambda v, A: hess_func(matvec_sym, (n, m), v, A), v_aug, A)
 (v_aug_grad, A_aug_grad) = vjpfun(hess_grad)
 
 
-# Look now at the reduced version:
-bd_new_func = bidiagonalize_new_adjoint(
-    num_matvecs, reorthogonalize=True, custom_vjp=True
+# Look at reduced version:
+bd_new_func = bidiagonalize(
+    num_matvecs, reorthogonalize=True, custom_vjp=True, also_reorthogonalize_vjp=True
 )
 bd_new_result: BidiagOutput = bd_new_func(matvec, v, A)
 
-print("Reduced VJP:")
 reduced_hess_loss, reduced_hess_grad = jax.value_and_grad(bidiag_materialized_loss)(
     bd_new_result
 )
 
+
+def compare_two_outputs(*args):
+    alphas, betas, ls, rs, res, c, _alphas, _betas, _ls, _rs, _res, _c = args
+    print("betas:", betas)
+
+    for i, (alpha, l, r, _alpha, _l, _r) in enumerate(
+        # for i, (alpha, beta, l, r, _alpha, _beta, _l, _r) in enumerate(
+        zip(alphas, ls.T, rs.T, _alphas, _ls.T, _rs.T)
+    ):
+        print(f"iteration {i}")
+        print()
+        print("as diff:", jnp.abs(alpha - _alpha))
+        # print("bs diff:", jnp.abs(beta - _beta))
+        print("r diff:", jnp.abs(r - _r))
+        # print("l diff:", jnp.abs(l - _l))
+        print()
+    print(
+        "norm of residuals:",
+        jnp.linalg.norm(res),
+        "and",
+        jnp.linalg.norm(res),
+        sep="\n",
+    )
+
+
+compare_two_outputs(
+    *extract_bidiag_results(bd_new_result), *extract_hess_results(hess_result)
+)
+
+
+print(jnp.linalg.norm(reduced_hess_loss - hess_loss))
+
+assert jnp.allclose(reduced_hess_loss, hess_loss, atol=1e-15, rtol=1e-15)
+
 _, vjpfun = jax.vjp(lambda v, A: bd_new_func(matvec, v, A), v, A)
 (v_grad_reduced, A_grad_reduced) = vjpfun(reduced_hess_grad)
 
-print("hess error norm:")
-check_bidiag_properties(*extract_hess_results(hess_result))
-print("reduced error norm:")
-check_bidiag_properties(*extract_bidiag_results(bd_new_result))
+# print("hess error norm:")
+# check_bidiag_properties(*extract_hess_results(hess_result))
+# print("reduced error norm:")
+# check_bidiag_properties(*extract_bidiag_results(bd_new_result))
 
 
-def compare(leaf1, leaf2, name):
+def assert_close(leaf1, leaf2, name):
     assert jnp.allclose(
-        leaf1, leaf2, atol=1e-15
+        leaf1, leaf2, rtol=1e-15
     ), f"{name} differ: error magnitude: {jnp.linalg.norm(leaf1-leaf2)}"
 
 
 stuff_names = ("rs", "ls", "alphas", "betas", "res", "c")
 jax.tree.map(
-    compare,
+    assert_close,
     extract_hess_results(hess_result),
     extract_bidiag_results(bd_new_result),
     stuff_names,
 )
 
-assert jnp.allclose(reduced_hess_loss, hess_loss)
-
 
 grad_names = ("A grad", "v_grad")
 jax.tree.map(
-    compare, (A_aug_grad, v_aug_grad[n:]), (A_grad_reduced, v_grad_reduced), grad_names
+    assert_close,
+    (A_aug_grad, v_aug_grad[n:]),
+    (A_grad_reduced, v_grad_reduced),
+    grad_names,
 )
+# print(A_aug_grad - A_grad_reduced)

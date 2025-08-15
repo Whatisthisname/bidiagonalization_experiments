@@ -8,7 +8,6 @@ from jax.typing import ArrayLike  # type: ignore[import-not-found]
 import jax.numpy as jnp  # type: ignore[import-not-found]
 
 jax.config.update("jax_enable_x64", True)
-jnp.printoptions(precision=4)
 
 
 MatVec = typing.Callable[[ArrayLike], ArrayLike]
@@ -73,10 +72,7 @@ class BidiagOutput:
     @property
     def B(self) -> ArrayLike:
         """(k, k) float array"""
-        as_diag = jnp.diag(self.as_)
-        for i in range(len(self.bs)):
-            as_diag = as_diag.at[i, i + 1].set(self.bs[i])
-        return as_diag
+        return jnp.diag(self.as_) + jnp.diag(self.bs, k=1)
 
     @property
     def R(self) -> ArrayLike:
@@ -84,18 +80,12 @@ class BidiagOutput:
         return self.rs
 
     @property
-    def iterations_finished(self) -> int:
-        """Accurate only up to floating point precision..."""
-
-        # returns index of first zero element or the last element if no zero element is found
-        def first_zero_or_len(arr):
-            zeros = jnp.isclose(arr, 0.0, atol=1e-6)
-            return jnp.where(jnp.any(zeros), jnp.argmax(zeros), len(arr) - 1)
-
-        return first_zero_or_len(self.as_)
+    def matvec_num(self) -> ArrayLike:
+        """integer"""
+        return jnp.array(len(self.as_))
 
 
-def __bidiagonalize_matvec(num_matvecs: int, reorthogonalize: bool = True):
+def _bidiagonalize_primal(num_matvecs: int, reorthogonalize: bool = True):
     def bidiagonalize_matvec(
         matvec: MatVec,
         r1_tilde: ArrayLike,
@@ -110,15 +100,14 @@ def __bidiagonalize_matvec(num_matvecs: int, reorthogonalize: bool = True):
         w0_like = jax.eval_shape(matvec, r1_tilde, *matvec_params)
         (nrows,) = np.shape(w0_like)
 
-        c = 1 / jnp.linalg.norm(r1_tilde)
-
         k = num_matvecs
 
         as_ = jnp.zeros((k))
         bs = jnp.zeros((k))
         rs = jnp.zeros((ncols, k + 1))
-        rs = rs.at[:, 0].set(r1_tilde * c)
+        rs = rs.at[:, 0].set(r1_tilde)
         ls = jnp.zeros((nrows, k))
+        init_length = jnp.linalg.norm(r1_tilde)
 
         CarryState = typing.NamedTuple(
             "CarryState",
@@ -127,75 +116,51 @@ def __bidiagonalize_matvec(num_matvecs: int, reorthogonalize: bool = True):
                 ("ls", ArrayLike),
                 ("as_", ArrayLike),
                 ("bs", ArrayLike),
+                ("length", ArrayLike),
             ],
         )
 
         def body_fun(i, carry: CarryState) -> CarryState:
-            # n = i + 1
-            n = i
-            # Forward pass step
-            if True:
-                t = (
-                    matvec(carry.rs[:, n], *matvec_params)
-                    - carry.bs[n - 1] * carry.ls[:, n - 1]
-                )
+            rs = carry.rs.at[:, i].divide(carry.length)
 
-                new_alpha, new_l = jax.lax.cond(
-                    pred=jnp.allclose(t, 0, atol=1e-6),  # | jnp.isnan(alpha_k),
-                    true_fun=lambda: (0.0, jnp.zeros_like(t)),
-                    false_fun=lambda: (jnp.linalg.norm(t), t / jnp.linalg.norm(t)),
-                )
-
-                as_ = carry.as_.at[n].set(new_alpha)
-
-                if reorthogonalize:
-                    mask = jnp.triu(jnp.ones((k + 1, k + 1)), k=1)
-                    masked_rs = mask[:, n][None, :] * carry.rs
-                    # jax.debug.print("censored rs: \n{}", censored_rs.round(1))
-                    rs = carry.rs.at[:, n].set(
-                        carry.rs[:, n] - masked_rs @ masked_rs.T @ carry.rs[:, n]
-                    )
-                    ls = carry.ls.at[:, n].set(new_l - carry.ls @ carry.ls.T @ new_l)
-                else:
-                    ls = carry.ls.at[:, n].set(new_l)
-                    rs = carry.rs
-
-                w = vecmat(ls[:, n]) - as_[n] * rs[:, n]
-                # beta_k = jnp.linalg.norm(w)
-
-                new_beta, new_r = jax.lax.cond(
-                    pred=jnp.allclose(w, 0, atol=1e-6),  # | jnp.isnan(beta_k),
-                    true_fun=lambda: (0.0, jnp.zeros_like(w)),
-                    false_fun=lambda: (jnp.linalg.norm(w), w / jnp.linalg.norm(w)),
-                )
-
-                bs = carry.bs.at[n].set(new_beta)
-                rs = rs.at[:, n + 1].set(new_r)
-
-            return CarryState(
-                rs=rs,
-                ls=ls,
-                as_=as_,
-                bs=bs,
+            l_dir = (
+                matvec(rs[:, i], *matvec_params) - carry.bs[i - 1] * carry.ls[:, i - 1]
             )
+
+            if reorthogonalize:
+                l_dir = l_dir - carry.ls @ carry.ls.T @ l_dir
+                # l_dir = l_dir - carry.ls @ carry.ls.T @ l_dir
+
+            new_alpha = jnp.linalg.norm(l_dir)
+            new_l = l_dir / new_alpha
+
+            ls = carry.ls.at[:, i].set(new_l)
+            as_ = carry.as_.at[i].set(new_alpha)
+
+            r_dir = vecmat(ls[:, i]) - as_[i] * rs[:, i]
+
+            if reorthogonalize:
+                r_dir = r_dir - rs @ rs.T @ r_dir
+                # r_dir = r_dir - rs @ rs.T @ r_dir
+
+            new_beta = jnp.linalg.norm(r_dir)
+            bs = carry.bs.at[i].set(new_beta)
+            rs = rs.at[:, i + 1].set(r_dir)
+
+            return CarryState(rs=rs, ls=ls, as_=as_, bs=bs, length=new_beta)
 
         # Run the loop
         loop_out = jax.lax.fori_loop(
             lower=0,
             upper=num_matvecs,
             body_fun=body_fun,
-            init_val=CarryState(
-                rs=rs,
-                ls=ls,
-                as_=as_,
-                bs=bs,
-            ),
+            init_val=CarryState(rs=rs, ls=ls, as_=as_, bs=bs, length=init_length),
         )
 
         # Create primal output
         primal_output = BidiagOutput(
-            c=c,
-            res=loop_out.bs[-1] * loop_out.rs[:, -1],
+            c=1 / init_length,
+            res=loop_out.rs[:, -1],
             rs=loop_out.rs[:, :-1],
             ls=loop_out.ls,
             as_=loop_out.as_,
@@ -405,8 +370,10 @@ def bidiagonalize(
     num_matvecs: int,
     custom_vjp: bool = True,
     reorthogonalize: bool = True,
+    also_reorthogonalize_vjp: bool = True,
 ):
-    primal_map = __bidiagonalize_matvec(
+    assert num_matvecs >= 1, "Don't call with num_matvecs = 0, come on..."
+    primal_map = _bidiagonalize_primal(
         num_matvecs=num_matvecs, reorthogonalize=reorthogonalize
     )
 
@@ -439,11 +406,14 @@ def bidiagonalize(
         (n,) = np.shape(w0_like)
         (m,) = np.shape(cache.v)
 
-        # Unpack primal variables from cache. These are 0-indexed.
+        k = num_matvecs
+
         rs = cache.primal.rs
         ls = cache.primal.ls
         bs = cache.primal.bs
-        bs = jnp.append(bs, jnp.array([-1.0]))
+        bs = jnp.append(
+            bs, jnp.array([-1.0])
+        )  # we divide by bs[i-1], so in the last iteration "i=0" (since we're going backwards) we will divide by b[-1] = -1, which just negates, which is exactly what we need.
         as_ = cache.primal.as_
         res = cache.primal.res
         c = cache.primal.c
@@ -453,18 +423,16 @@ def bidiagonalize(
         drs = d.rs
         dls = d.ls
         dbs = d.bs
-        dbs = jnp.append(dbs, jnp.array([0.0]))
+        dbs = jnp.append(
+            dbs, jnp.array([0.0])
+        )  # here we append 0.0 because we are multiplying by the "next db", db[i+1], which is not defined at i=k-1. So, we want to remove the contribution of that term.
         das = d.as_
-        das = jnp.append(das, jnp.array([0.0]))
+        das = jnp.append(das, jnp.array([0.0]))  # Same story ^
         dres = d.res
         dc = d.c
 
-        k = num_matvecs
-
-        assert num_matvecs >= 1
-
         gamma = -rs.T @ dres
-        del d  # so we don't accidentally use it later.
+        del d
 
         gamma = gamma.at[-1].add(das[k - 1])
         down_k = dres + rs @ gamma
@@ -480,12 +448,12 @@ def bidiagonalize(
 
             # Reortho the "down" contained in the carry
             down_i = carry.down_i
-            if reorthogonalize:
-                correction = jnp.zeros(shape=k).at[i].set(das[i])
+            if reorthogonalize and also_reorthogonalize_vjp:
+                # correction = jnp.zeros(shape=k).at[i].set(das[i])
                 down_i = (
                     down_i
                     - rs @ (upper_tri[:, i + 1] * (rs.T @ down_i))
-                    + rs @ correction
+                    + rs[:, i] * das[i]
                 )
 
             A_down_i = matvec(carry.down_i, *matvec_params)
@@ -502,12 +470,16 @@ def bidiagonalize(
                 + ls @ (Sigma + Sigma.T)[:, i]
                 - carry.up_i_p_1 * bs[i]
             )
-            up_i /= as_[i]
 
+            up_i /= as_[i]
             # Reortho the "up" we have just produced
-            if reorthogonalize:
-                correction = jnp.zeros(shape=k).at[i - 1].set(dbs[i - 1])
-                up_i = up_i - ls @ (upper_tri[:, i] * (ls.T @ up_i)) + ls @ correction
+            if reorthogonalize and also_reorthogonalize_vjp:
+                # correction = jnp.zeros(shape=k).at[i - 1].set(dbs[i - 1])
+                up_i = (
+                    up_i
+                    - ls @ (upper_tri[:, i] * (ls.T @ up_i))
+                    + ls[:, i - 1] * dbs[i - 1]
+                )
 
             # Second phase
             AT_up_i = vecmat(up_i)
@@ -554,11 +526,13 @@ def bidiagonalize(
         output: CarryState = jax.lax.fori_loop(
             lower=0,
             upper=k,
-            body_fun=body_fun,
+            body_fun=body_fun,  # todo partial application with ls and rs etc.
             init_val=CarryState(
                 up_i_p_1=jnp.zeros(n),
                 down_i=down_k,
-                param_incremental_grads=jax.tree.map(jnp.zeros_like, matvec_params),
+                param_incremental_grads=jax.tree.map(
+                    lambda leaf: jnp.zeros_like(leaf, dtype=float), matvec_params
+                ),
                 Sigma=jnp.zeros((k, k)),
                 Omega=jnp.zeros((k, k)),
             ),
