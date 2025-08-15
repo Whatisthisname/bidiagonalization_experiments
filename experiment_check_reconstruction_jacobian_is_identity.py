@@ -44,11 +44,11 @@ key_A, key_v = jax.random.split(key, num=2)
 
 plt.subplots(dpi=200)
 setups = {
-    (True, False, True, "none"): "AH: Backprop",
-    (False, False, True, "none"): "BD: Backprop",
-    (True, True, True, "match"): "AH: Adj. w/ re-proj.",
+    # (True, False, True, "none"): "AH: Backprop",
+    # (False, False, True, "none"): "BD: Backprop",
+    # (True, True, True, "match"): "AH: Adj. w/ re-proj.",
     (False, True, True, "match"): "BD: Adj. w/ re-proj.",
-    (True, True, True, "none"): "AH: Adj. w/o re-proj.",
+    # (True, True, True, "none"): "AH: Adj. w/o re-proj.",
     (False, True, True, "none"): "BD: Adj. w/o re-proj.",
 }
 styles_all = {"linewidth": 1.0, "alpha": 0.8}
@@ -73,18 +73,19 @@ styles = {
 for (use_hessenberg, custom, reortho, match), label in tqdm.tqdm(
     setups.items(), desc="Testing setups"
 ):
-    ns = jnp.arange(1, 20, step=2)
+    ns = jnp.arange(8, 20, step=4)
     loss = []
-    bd_loss = []
+    # bd_loss = []
     for n in tqdm.tqdm(ns, desc=f"Testing {label}", leave=False):
+        n = 64
         n = int(n)
-        A = hilbert_matrix(n)
+        A = hilbert_matrix(n)[:, : n // 2]
 
         bd_func = bidiagonalize(
-            num_matvecs=n,
+            num_matvecs=n // 2,
             custom_vjp=custom,
-            reorthogonalize=reortho,
-            also_reorthogonalize_vjp=match == "match",
+            reorthogonalize=True,
+            also_reorthogonalize_vjp=(match == "match"),
         )
 
         def matvec_sym(v0, *params):
@@ -92,11 +93,11 @@ for (use_hessenberg, custom, reortho, match), label in tqdm.tqdm(
             upper, lower = jnp.split(v0, [n])
             return jnp.concat((A @ lower, A.T @ upper))
 
-        v = jax.random.normal(key_v, shape=(n,))
+        v = jax.random.normal(key_v, shape=(n // 2,))
         v_aug = jnp.concat([jnp.zeros(n), v])
 
         hess_func = hessenberg(
-            2 * n, reortho=reortho, custom_vjp=custom, reortho_vjp=match
+            n + n // 2, reortho=reortho, custom_vjp=custom, reortho_vjp=match
         )
 
         flat, unflatten = jax.flatten_util.ravel_pytree(A)
@@ -107,7 +108,7 @@ for (use_hessenberg, custom, reortho, match), label in tqdm.tqdm(
             a = unflatten(x)
 
             if use_hessenberg:
-                result = hess_func(matvec_sym, (n, n), v_aug, a)
+                result = hess_func(matvec_sym, (n, n // 2), v_aug, a)
                 rlrlrl = result.Q_tall
                 ls = rlrlrl[:n, 1::2]
                 rs = rlrlrl[n:, 0::2]
@@ -126,11 +127,19 @@ for (use_hessenberg, custom, reortho, match), label in tqdm.tqdm(
                     result.bs,
                     result.res,
                 )
+                # jax.debug.print("HELLO: \n{}", ls.T @ ls)
 
             B = jnp.diag(alphas) + jnp.diag(betas, k=1)
             return jax.flatten_util.ravel_pytree(ls @ B @ rs.T)[0]
 
+        # dv, dparam = jax.vjp(identity, flat)[1](flat)
+        result, vjpfun = jax.vjp(
+            lambda vv, pp: bd_func(lambda v, p: p @ v, vv, pp), v, A
+        )
+        dv, dA = vjpfun(result)
+
         diff = jnp.eye(len(flat)) - identity(flat)
+        # diff = flat - identity(flat)
         error = jnp.sqrt(jnp.mean(diff**2))
         loss.append(error)
 
@@ -143,7 +152,7 @@ for (use_hessenberg, custom, reortho, match), label in tqdm.tqdm(
 plt.legend(fontsize="xx-small")
 plt.xlabel("Hilbert matrix size", fontsize="small")
 plt.ylabel("Loss of accuracy", fontsize="small")
-plt.ylim((1e-18, 1e0))
+# plt.ylim((1e-18, 1e0))
 
 directory_fig = matching_directory(__file__, "figures/")
 os.makedirs(directory_fig, exist_ok=True)

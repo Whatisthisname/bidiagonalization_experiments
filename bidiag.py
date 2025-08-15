@@ -129,7 +129,7 @@ def _bidiagonalize_primal(num_matvecs: int, reorthogonalize: bool = True):
 
             if reorthogonalize:
                 l_dir = l_dir - carry.ls @ carry.ls.T @ l_dir
-                # l_dir = l_dir - carry.ls @ carry.ls.T @ l_dir
+                l_dir = l_dir - carry.ls @ carry.ls.T @ l_dir
 
             new_alpha = jnp.linalg.norm(l_dir)
             new_l = l_dir / new_alpha
@@ -141,7 +141,7 @@ def _bidiagonalize_primal(num_matvecs: int, reorthogonalize: bool = True):
 
             if reorthogonalize:
                 r_dir = r_dir - rs @ rs.T @ r_dir
-                # r_dir = r_dir - rs @ rs.T @ r_dir
+                r_dir = r_dir - rs @ rs.T @ r_dir
 
             new_beta = jnp.linalg.norm(r_dir)
             bs = carry.bs.at[i].set(new_beta)
@@ -397,10 +397,6 @@ def bidiagonalize(
         d: BidiagOutput,
     ) -> BidiagInput:
         cache, matvec_params = cache_and_params
-        _, vecmat_fun = jax.vjp(lambda v, p: matvec(v, *p), cache.v, matvec_params)
-
-        def vecmat(v):
-            return vecmat_fun(v)[0]
 
         w0_like = jax.eval_shape(matvec, cache.v, *matvec_params)
         (n,) = np.shape(w0_like)
@@ -448,15 +444,20 @@ def bidiagonalize(
 
             # Reortho the "down" contained in the carry
             down_i = carry.down_i
+            correction = jnp.zeros(shape=k).at[i].set(das[i])
             if reorthogonalize and also_reorthogonalize_vjp:
-                # correction = jnp.zeros(shape=k).at[i].set(das[i])
+                # print("BEFORE:\n{}", upper_tri[:, i + 1] * (rs.T @ down_i) - correction)
                 down_i = (
                     down_i
                     - rs @ (upper_tri[:, i + 1] * (rs.T @ down_i))
                     + rs[:, i] * das[i]
                 )
+            # print("AFTER:\n{}", upper_tri[:, i + 1] * (rs.T @ down_i) - correction)
+            # print()
 
-            A_down_i = matvec(carry.down_i, *matvec_params)
+            A_down_i, vjp_l = jax.vjp(lambda p: matvec(down_i, *p), matvec_params)
+            (new_param_grad_incr_down,) = vjp_l(ls[:, i])
+
             Sigma_SigmaT = -ls.T @ (dls[:, i] + A_down_i)
             Sigma_SigmaT = Sigma_SigmaT.at[i - 1].add(as_[i] * dbs[i - 1])
 
@@ -473,16 +474,28 @@ def bidiagonalize(
 
             up_i /= as_[i]
             # Reortho the "up" we have just produced
+
+            correction = jnp.zeros(shape=k).at[i - 1].set(dbs[i - 1])
+            # print("BEFORE: ls.T @ up \n{}", ls.T @ up_i - correction)
+            # print(upper_tri[:, i] * (ls.T @ up_i) - correction)
             if reorthogonalize and also_reorthogonalize_vjp:
-                # correction = jnp.zeros(shape=k).at[i - 1].set(dbs[i - 1])
                 up_i = (
                     up_i
                     - ls @ (upper_tri[:, i] * (ls.T @ up_i))
                     + ls[:, i - 1] * dbs[i - 1]
                 )
+                # print(upper_tri[:, i] * (ls.T @ up_i) - correction)
+            # print()
 
-            # Second phase
-            AT_up_i = vecmat(up_i)
+            # print("AFTER: ls.T @ up \n{}", ls.T @ up_i - correction)
+
+            def vecmat(v, *params_):
+                _, vecmat_fun = jax.vjp(lambda v_: matvec(v_, *params_), rs[:, 0])
+                return vecmat_fun(v)[0]
+
+            AT_up_i, vjp_r = jax.vjp(lambda p: vecmat(up_i, *p), matvec_params)
+            (new_param_grad_incr_up,) = vjp_r(rs[:, i])
+
             Omega_OmegaT = -rs.T @ (drs[:, i] + AT_up_i)
             Omega_OmegaT = Omega_OmegaT.at[i - 1].add(das[i - 1] * bs[i - 1])
             Omega_OmegaT = Omega_OmegaT.at[i].add(
@@ -500,25 +513,17 @@ def bidiagonalize(
             )
             downs_i_m_1 /= bs[i - 1]
 
-            def parameter_gradient_getter(params, up, r, l, down):
-                return up @ matvec(r, *params) + l @ matvec(down, *params)
-
-            new_param_grad_incr = jax.grad(parameter_gradient_getter, argnums=0)(
-                matvec_params,
-                up_i,
-                rs[:, i],
-                ls[:, i],
-                carry.down_i,
+            incremented = jax.tree_util.tree_map(
+                lambda running_sum, up, down: running_sum + up + down,
+                carry.param_incremental_grads,
+                new_param_grad_incr_up,
+                new_param_grad_incr_down,
             )
 
             return CarryState(
                 up_i_p_1=up_i,
                 down_i=downs_i_m_1,
-                param_incremental_grads=jax.tree_util.tree_map(
-                    lambda running_sum, grad_component: running_sum + grad_component,
-                    carry.param_incremental_grads,
-                    new_param_grad_incr,
-                ),
+                param_incremental_grads=incremented,
                 Omega=Omega,
                 Sigma=Sigma,
             )
