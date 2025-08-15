@@ -104,9 +104,7 @@ def _build_primal_and_cotangent_bidiag_autodiff(k: int):
 
 
 def _block_until_ready_pytree(x):
-    return jax.tree.map(
-        lambda a: a.block_until_ready() if hasattr(a, "block_until_ready") else a, x
-    )
+    return jax.tree.map(lambda leaf: leaf.block_until_ready(), x)
 
 
 def _generate_inputs(profile: dict):
@@ -142,7 +140,10 @@ def _build_primal_and_loss(profile: dict, is_sparse, params_unflatten, M):
 
     if algorithm == "bidiag":
         bd_func = bidiagonalize(
-            num_matvecs=k, reorthogonalize=reorthogonalize, custom_vjp=custom_vjp
+            num_matvecs=k,
+            reorthogonalize=reorthogonalize,
+            custom_vjp=custom_vjp,
+            also_reorthogonalize_vjp=True,
         )
 
         def matvec(v, params):
@@ -198,6 +199,7 @@ def _measure_profile(
     out = fwd_fn_jit(v, params)
     _block_until_ready_pytree(out)
     fwd_compile = time.perf_counter() - t0
+    print("fwd compile\n", fwd_compile)
 
     fwd_steady = []
     for _ in range(steady_repeats):
@@ -205,15 +207,19 @@ def _measure_profile(
         x = fwd_fn_jit(v, params)
         _block_until_ready_pytree(x)
         fwd_steady.append(time.perf_counter() - t0)
+    print("fwd steady\n", fwd_steady)
 
     # Backward timings
     _, cotan = jax.value_and_grad(loss_fn)(out)
-    _, vjp_fn = jax.vjp(fwd_fn_jit, v, params)
+    _block_until_ready_pytree(cotan)
+    first, vjp_fn = jax.vjp(fwd_fn_jit, v, params)
+    _block_until_ready_pytree(first)
     vjp_fn = jax.jit(vjp_fn)
     t0 = time.perf_counter()
     b2 = vjp_fn(cotan)
     _block_until_ready_pytree(b2)
     bwd_compile = time.perf_counter() - t0
+    print("bwd compile\n", bwd_compile)
 
     bwd_steady = []
     for _ in range(steady_repeats):
@@ -221,6 +227,7 @@ def _measure_profile(
         y = vjp_fn(cotan)
         _block_until_ready_pytree(y)
         bwd_steady.append(time.perf_counter() - t0)
+    print("bwd steady\n", bwd_steady)
 
     # Optional true compile timings
     if include_true_compile and False:
@@ -474,7 +481,7 @@ if __name__ == "__main__":
         for reorth in [True]:
             for custom_vjp in [True]:
                 for matrix_name in ["1138_bus"]:
-                    for k in np.linspace(20, 250, 4, dtype=int):
+                    for k in np.linspace(20, 500, 7, dtype=int):
                         profiles.append(
                             {
                                 "algorithm": alg,

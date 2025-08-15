@@ -459,11 +459,11 @@ def bidiagonalize(
             vecmat,
         )
 
-        stuff = jax.tree.map(jnp.zeros_like, matvec_params)
+        param_incremental_grads = jax.tree.map(jnp.zeros_like, matvec_params)
         init = CarryState(
             up_i_p_1=jnp.zeros(n),
             down_i=down_k,
-            param_incremental_grads=stuff,
+            param_incremental_grads=param_incremental_grads,
             Sigma=jnp.zeros((k, k)),
             Omega=jnp.zeros((k, k)),
         )
@@ -515,6 +515,7 @@ def bidiagonalize(
                     - rs @ (upper_tri[:, i + 1] * (rs.T @ down_i))
                     + rs[:, i] * das[i]
                 )
+                # down_i = down_i * 1.0
 
             A_down_i, vjp_l = jax.vjp(lambda p: matvec(down_i, *p), matvec_params)
             (new_param_grad_incr_down,) = vjp_l(ls[:, i])
@@ -532,16 +533,16 @@ def bidiagonalize(
                 + ls @ (Sigma + Sigma.T)[:, i]
                 - carry.up_i_p_1 * bs[i]
             )
-
             up_i /= as_[i]
-            # Reortho the "up" we have just produced
 
+            # Reortho the "up" we have just produced
             if reorthogonalize and also_reorthogonalize_vjp:
                 up_i = (
                     up_i
                     - ls @ (upper_tri[:, i] * (ls.T @ up_i))
                     + ls[:, i - 1] * dbs[i - 1]
                 )
+                # up_i = up_i * 1.0
 
             AT_up_i, vjp_r = jax.vjp(lambda p: vecmat(up_i, *p), matvec_params)
             (new_param_grad_incr_up,) = vjp_r(rs[:, i])
@@ -549,7 +550,10 @@ def bidiagonalize(
             Omega_OmegaT = -rs.T @ (drs[:, i] + AT_up_i)
             Omega_OmegaT = Omega_OmegaT.at[i - 1].add(das[i - 1] * bs[i - 1])
             Omega_OmegaT = Omega_OmegaT.at[i].add(
-                as_[i] * das[i] - just_in_case.at[i].get(mode="fill", fill_value=0.0)
+                as_[i] * das[i]
+                - just_in_case.at[i].get(
+                    mode="fill", fill_value=0.0
+                )  # Todo: don't do this
             )
             Omega = carry.Omega.at[i, :].add(Omega_OmegaT * upper_tri[:, i])
             Omega = Omega.at[i, i].divide(2.0)
@@ -564,7 +568,7 @@ def bidiagonalize(
             downs_i_m_1 /= bs[i - 1]
 
             incremented = jax.tree_util.tree_map(
-                lambda running_sum, up, down: running_sum.at[:].add(up + down),
+                lambda running_sum, up, down: running_sum.at[:].add(up).at[:].add(down),
                 carry.param_incremental_grads,
                 new_param_grad_incr_up,
                 new_param_grad_incr_down,
