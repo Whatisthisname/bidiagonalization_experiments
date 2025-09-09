@@ -1,6 +1,6 @@
 # Fdb version 4
-["pdflatex"] 1757437009.53292 "/Users/theoruterwurtzen/Desktop/Arbeit/bidiagonalization_experiments/latex/document.tex" "document.pdf" "document" 1757437010.29952 0
-  "/Users/theoruterwurtzen/Desktop/Arbeit/bidiagonalization_experiments/latex/document.tex" 1757437009.39518 20773 b0309a61ba77d8b23b1ef3aab9e9517a ""
+["pdflatex"] 1757437203.20706 "/Users/theoruterwurtzen/Desktop/Arbeit/bidiagonalization_experiments/latex/document.tex" "document.pdf" "document" 1757437203.98435 0
+  "/Users/theoruterwurtzen/Desktop/Arbeit/bidiagonalization_experiments/latex/document.tex" 1757437203.09166 20796 1fa21270a7d68a3a745953a0fb4b66d8 ""
   "/usr/local/texlive/2024/texmf-dist/fonts/map/fontname/texfonts.map" 1577235249 3524 cb3e574dea2d1052e39280babc910dc8 ""
   "/usr/local/texlive/2024/texmf-dist/fonts/tfm/public/amsfonts/cmextra/cmbsy6.tfm" 1246382020 1124 14ccf5552bc7f77ca02a8a402bea8bfb ""
   "/usr/local/texlive/2024/texmf-dist/fonts/tfm/public/amsfonts/cmextra/cmbsy8.tfm" 1246382020 1120 200be8b775682cdf80acad4be5ef57e4 ""
@@ -128,10 +128,10 @@
   "/usr/local/texlive/2024/texmf-var/fonts/map/pdftex/updmap/pdftex.map" 1733520439 5476123 0aaf5f0b94d004f6c94b5aad0957af23 ""
   "/usr/local/texlive/2024/texmf-var/web2c/pdftex/pdflatex.fmt" 1733520562 3343727 587feebb92457376f15ed0a1284418ee ""
   "/usr/local/texlive/2024/texmf.cnf" 1710266656 577 e590dabc9e28c5b61546e15f63eebcdf ""
-  "document.aux" 1757437010.21195 4847 d52352abc0047aedaef76938f844b2db "pdflatex"
-  "document.out" 1757437010.21314 3560 36eadfc22187f1ad11918ff28322a781 "pdflatex"
-  "document.tex" 1757437009.39518 20773 b0309a61ba77d8b23b1ef3aab9e9517a ""
-  "document.toc" 1757437010.21346 1630 9cb732736cee43bbcb0679263aac08e0 "pdflatex"
+  "document.aux" 1757437203.89633 4847 fbeae9efeb58fed39181b20ce739339a "pdflatex"
+  "document.out" 1757437203.89727 3560 36eadfc22187f1ad11918ff28322a781 "pdflatex"
+  "document.tex" 1757437203.09166 20796 1fa21270a7d68a3a745953a0fb4b66d8 ""
+  "document.toc" 1757437203.8975 1630 9cb732736cee43bbcb0679263aac08e0 "pdflatex"
   (generated)
   "document.aux"
   "document.log"

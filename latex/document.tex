@@ -158,11 +158,11 @@ While Bidiagonalization has well-understood forward algorithms and constraints, 
 To compute $\texttt{Bidiagonalize}(A, v) = (L, R, B, r, c)$ for any $A \in \mathbb{R}^{N \times M}$ and $v \in \mathbb{R}^M$ using Hessenberg factorization, we construct the symmetric matrix $\bar{A}$ and augmented vector $\bar{v}$:
 $$\bar{A} := \begin{bmatrix}\mathbf{0} & A \\ A^\top & \mathbf{0}\end{bmatrix} \in \mathbb{R}^{(N+M) \times (N+M)} \quad \text{and} \quad \bar{v} := \begin{pmatrix}\mathbf{0} \\ v \end{pmatrix} \in \mathbb{R}^{N+M}$$
 We define the operation $\texttt{augment}: (A, v) \mapsto (\bar{A}, \bar{v})$ as the augmentation of a matrix and vector to this symmetric matrix and padded vector.
-Applying Hessenberg factorization to this constructed input yields
+Applying Hessenberg factorization to this augmented input yields
 $$\texttt{Hessenberg}(\bar{A}, \bar{v}) = (\bar{Q}, \bar{H}, \bar{r}, c)$$
 which are directly related to $(L, R, B, r, c)$ through the following sparse equations:
 
-$$\bar{Q} = \begin{bmatrix}\mathbf{0} & l_1 & \mathbf{0} & l_2 & \cdots & \mathbf{0} & l_k \\ r_1 & \mathbf{0} & r_2 & \mathbf{0} &  \cdots & r_k & \mathbf{0} \end{bmatrix} \in \mathbb{R}^{(N+M) \times K} \qquad \bar{r} :=\begin{pmatrix}\mathbf{0} \\ r \end{pmatrix}$$
+$$\bar{Q} = \begin{bmatrix}\mathbf{0} & l_1 & \mathbf{0} & l_2 & \cdots & \mathbf{0} & l_k \\ r_1 & \mathbf{0} & r_2 & \mathbf{0} &  \cdots & r_k & \mathbf{0} \end{bmatrix} \in \mathbb{R}^{(N+M) \times K} \qquad \bar{r} :=\begin{pmatrix}\mathbf{0} \\ r \end{pmatrix} \in \mathbb{R}^{N+M}$$
 
 $$\bar{H} = \begin{bmatrix}
 0 & \alpha_1 & 0  & 0 & 0 & 0 & 0 & 0\\
@@ -176,7 +176,7 @@ $$\bar{H} = \begin{bmatrix}
 \end{bmatrix} \in \mathbb{R}^{2K \times 2K}$$
 The vectors $l_i$ and $r_i$ in $\bar{Q}$ are exactly the columns of $L$ and $R$, while the bands in $\bar{H}$ hold the entries of the bidiagonal matrix $B$ with duplicated $\alpha_i$ and $\beta_i$ values. The residual vector $\bar{r}$ is simply a padded version of $r$, and the inverse norm $c$ is unchanged.
 
-We formalize this relationship through an extraction mapping $\texttt{extract}: (\bar{Q}, \bar{H}, \bar{r}, c) \mapsto (L, R, B, r, c)$ that projects away the zeros and extracts the relevant non-zero entries from the Hessenberg outputs.\footnote{The projection from $\bar{H}$ to $B$ is not unique, as $\bar{H}$ contains two copies of each $\alpha_i$ and $\beta_i$. We arbitrarily select the superdiagonal entries and drop the subdiagonal entries. This choice affects the sparsity pattern of $\nabla_{\bar{H}} \rho$ in section \ref{subsec:derivation_stable_adjoint_system}.} This allows us to define \textbf{augmented Bidiagonalization} as $\overline{\texttt{Bidiagonalize}} = \texttt{extract} \circ \texttt{Hessenberg} \circ \texttt{augment}$, which is functionally equivalent to standard Bidiagonalization but inherits the numerical stability properties of Hessenberg factorization's adjoint system. 
+We formalize this relationship through an extraction mapping $$\texttt{extract}: (\bar{Q}, \bar{H}, \bar{r}, c) \mapsto (L, R, B, r, c)$$ that projects away the zeros and extracts the relevant non-zero entries from the Hessenberg outputs.\footnote{The projection from $\bar{H}$ to $B$ is not unique, as $\bar{H}$ contains two copies of each $\alpha_i$ and $\beta_i$. We arbitrarily select the superdiagonal entries and drop the subdiagonal entries. This choice affects the sparsity pattern of $\nabla_{\bar{H}} \rho$ in section \ref{subsec:derivation_stable_adjoint_system}.} This allows us to define \textbf{augmented Bidiagonalization} as $$\overline{\texttt{Bidiagonalize}} = \texttt{extract} \circ \texttt{Hessenberg} \circ \texttt{augment}$$, which is functionally equivalent to standard Bidiagonalization but inherits the numerical stability properties of Hessenberg factorization's adjoint system. 
 This equivalence is the foundation for our stable gradient computation approach in the following sections. This composition however has an computational overhead vs just calling Bidiagonalization directly, so the remaining section will focus on pruning the computational graph to minimize work.
 
 \section{Adjoint systems}
