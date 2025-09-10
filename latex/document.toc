@@ -14,4 +14,9 @@
 \contentsline {subsection}{\numberline {4.6}Stable Adjoint System}{8}{subsection.4.6}%
 \contentsline {subsection}{\numberline {4.7}Derivation of the Stable Adjoint System}{8}{subsection.4.7}%
 \contentsline {subsubsection}{\numberline {4.7.1}Constraint \eqref {eq:adjoint_hessenberg_constraint1}}{8}{subsubsection.4.7.1}%
-\contentsline {subsection}{\numberline {4.8}Columnwise expanded unstable adjoint}{9}{subsection.4.8}%
+\contentsline {subsubsection}{\numberline {4.7.2}Constraint \eqref {eq:adjoint_hessenberg_constraint2}}{9}{subsubsection.4.7.2}%
+\contentsline {subsubsection}{\numberline {4.7.3}Constraint \eqref {eq:adjoint_hessenberg_constraint3}}{9}{subsubsection.4.7.3}%
+\contentsline {subsubsection}{\numberline {4.7.4}Constraint \eqref {eq:adjoint_hessenberg_constraint4}}{9}{subsubsection.4.7.4}%
+\contentsline {subsubsection}{\numberline {4.7.5}Step 2: ???}{9}{subsubsection.4.7.5}%
+\contentsline {subsubsection}{\numberline {4.7.6}Step 3: Profit}{9}{subsubsection.4.7.6}%
+\contentsline {subsection}{\numberline {4.8}Columnwise expanded unstable adjoint}{10}{subsection.4.8}%

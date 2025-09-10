@@ -69,6 +69,8 @@ Ideally, that should've been enough, but it can be shown that it is not - we nee
 
 In the adjoint system we can do something similar.
 
+UPARROW IS PHI, DOWNARROW IS XI
+
 \section{Prerequisites}
 
 \subsection{Matrix free linear algebra}
@@ -153,13 +155,13 @@ $Q^\top q_i = e_i$ in which case we call the reprojection step followed by norma
 
 \section{Bidiagonalization through Hessenberg factorization}\label{sec:bidiag_through_hessenberg}
 
-While Bidiagonalization has well-understood forward algorithms and constraints, computing its adjoint (gradient) in a numerically stable way is challenging (TODO show that it is unstable from example). However, Hessenberg factorization has known stable adjoint methods (TODO cite Nico). This paper builds from a connection between Bidiagonalization and Hessenberg factorization, namely that any Bidiagonalization can be computed by performing Hessenberg factorization on an appropriately constructed symmetric matrix, allowing us to then leverage the stable adjoint algorithms of Hessenberg factorization proposed in (TODO cite Nico).
-
+While Bidiagonalization has well-understood forward algorithms and constraints, computing its gradient in a numerically stable way is challenging (TODO show that it is unstable from example). This paper builds from a connection between Bidiagonalization and Hessenberg factorization, namely that any Bidiagonalization can be computed by performing Hessenberg factorization on an appropriately constructed symmetric matrix, allowing us to then leverage the stable gradient of Hessenberg factorization proposed in (TODO cite Nico).
+\\
 To compute $\texttt{Bidiagonalize}(A, v) = (L, R, B, r, c)$ for any $A \in \mathbb{R}^{N \times M}$ and $v \in \mathbb{R}^M$ using Hessenberg factorization, we construct the symmetric matrix $\bar{A}$ and augmented vector $\bar{v}$:
 $$\bar{A} := \begin{bmatrix}\mathbf{0} & A \\ A^\top & \mathbf{0}\end{bmatrix} \in \mathbb{R}^{(N+M) \times (N+M)} \quad \text{and} \quad \bar{v} := \begin{pmatrix}\mathbf{0} \\ v \end{pmatrix} \in \mathbb{R}^{N+M}$$
 We define the operation $\texttt{augment}: (A, v) \mapsto (\bar{A}, \bar{v})$ as the augmentation of a matrix and vector to this symmetric matrix and padded vector.
 Applying Hessenberg factorization to this augmented input yields
-$$\texttt{Hessenberg}(\bar{A}, \bar{v}) = (\bar{Q}, \bar{H}, \bar{r}, c)$$
+$\texttt{Hessenberg}(\bar{A}, \bar{v}) = (\bar{Q}, \bar{H}, \bar{r}, c)$
 which are directly related to $(L, R, B, r, c)$ through the following sparse equations:
 
 $$\bar{Q} = \begin{bmatrix}\mathbf{0} & l_1 & \mathbf{0} & l_2 & \cdots & \mathbf{0} & l_k \\ r_1 & \mathbf{0} & r_2 & \mathbf{0} &  \cdots & r_k & \mathbf{0} \end{bmatrix} \in \mathbb{R}^{(N+M) \times K} \qquad \bar{r} :=\begin{pmatrix}\mathbf{0} \\ r \end{pmatrix} \in \mathbb{R}^{N+M}$$
@@ -175,9 +177,9 @@ $$\bar{H} = \begin{bmatrix}
 0 & 0 & 0 & 0 & 0 & 0  & \alpha_K & 0\\
 \end{bmatrix} \in \mathbb{R}^{2K \times 2K}$$
 The vectors $l_i$ and $r_i$ in $\bar{Q}$ are exactly the columns of $L$ and $R$, while the bands in $\bar{H}$ hold the entries of the bidiagonal matrix $B$ with duplicated $\alpha_i$ and $\beta_i$ values. The residual vector $\bar{r}$ is simply a padded version of $r$, and the inverse norm $c$ is unchanged.
-
-We formalize this relationship through an extraction mapping $$\texttt{extract}: (\bar{Q}, \bar{H}, \bar{r}, c) \mapsto (L, R, B, r, c)$$ that projects away the zeros and extracts the relevant non-zero entries from the Hessenberg outputs.\footnote{The projection from $\bar{H}$ to $B$ is not unique, as $\bar{H}$ contains two copies of each $\alpha_i$ and $\beta_i$. We arbitrarily select the superdiagonal entries and drop the subdiagonal entries. This choice affects the sparsity pattern of $\nabla_{\bar{H}} \rho$ in section \ref{subsec:derivation_stable_adjoint_system}.} This allows us to define \textbf{augmented Bidiagonalization} as $$\overline{\texttt{Bidiagonalize}} = \texttt{extract} \circ \texttt{Hessenberg} \circ \texttt{augment}$$, which is functionally equivalent to standard Bidiagonalization but inherits the numerical stability properties of Hessenberg factorization's adjoint system. 
-This equivalence is the foundation for our stable gradient computation approach in the following sections. This composition however has an computational overhead vs just calling Bidiagonalization directly, so the remaining section will focus on pruning the computational graph to minimize work.
+We formalize this relationship through a simple linear extraction mapping $$\texttt{extract}: (\bar{Q}, \bar{H}, \bar{r}, c) \mapsto (L, R, B, r, c)$$ that projects away the zeros and extracts the relevant non-zero entries from the Hessenberg outputs.\footnote{The projection from $\bar{H}$ to $B$ is not unique, as $\bar{H}$ contains two copies of each $\alpha_i$ and $\beta_i$. We arbitrarily select the superdiagonal entries and drop the subdiagonal entries. This choice affects the sparsity pattern of $\nabla_{\bar{H}} \rho$ in section \ref{subsec:derivation_stable_adjoint_system}. Any other convex linear combination of each pair would also be valid.} This allows us to define \textbf{augmented Bidiagonalization} as $$\overline{\texttt{Bidiagonalize}} := \texttt{extract} \circ \texttt{Hessenberg} \circ \texttt{augment}$$ which is functionally equivalent to standard Bidiagonalization but inherits the numerical stability properties of Hessenberg factorization's adjoint system. 
+\\
+The problem is that this is computing a lot of zeros. We will show that we can prune the computational graph to minimize work.
 
 \section{Adjoint systems}
 
@@ -190,7 +192,6 @@ Let $s : \theta \mapsto x$ be a numerical solver that yields a solution $x$ to s
 \begin{example}[Hessenberg Factorization]
     A fitting example would be $s = $ Hessenberg-factorization, which implies that $\theta = (A, v)$ and $x = (Q, H, r, c)$. The associated constraint function would be the concatenation of \eqref{eq:hessenberg_forward_constraint1} through \eqref{eq:hessenberg_forward_constraint5}. We see that, for this example, $c(x, \theta) = \mathbf{0}$ for all solutions $(Q, H, r, c)$ if and only if they correctly Hessenberg-factorize from $\theta$ = $(A, v)$.
 \end{example}
-    
 Because $c(s(\theta), \theta) = \mathbf{0}$ is constantly zero, the total derivative $\frac{d}{d\theta} c$ is also zero. With the chain rule, we have:
 
 \begin{align}
@@ -294,19 +295,65 @@ c \nabla c &= r_1^\top\kappa
 \end{align}
 
 \subsection{Derivation of the Stable Adjoint System} \label{subsec:derivation_stable_adjoint_system}
-If we restrict the inputs to Hessenberg factorization to matrices $\bar{A}$ and vectors $\bar{v}$, we get the relationship between Hessenberg Factorization and Bidiagonalization as described in \ref{sec:bidiag_through_hessenberg}. We can then further combine this with the adjoint system of Hessenberg Factorization as described in \ref{subsec:adjoint_hessenberg}. The idea is to prune away unnecessary computation and avoid "creating the zeros".
-We will look at the constraints \eqref{eq:adjoint_hessenberg_constraint1} through \eqref{eq:adjoint_hessenberg_constraint4} one at a time, and see how they can be simplified by using the relationship between Hessenberg Factorization and Bidiagonalization.
+As described in \ref{sec:bidiag_through_hessenberg}, we can use $\overline{\texttt{Bidiagonalize}}$ to (inefficiently) bidiagonalize any matrix $A$ with initial vector $v$. The detour through $\texttt{Hessenberg}$ let's us use the adjoint system of Hessenberg Factorization described in \ref{subsec:adjoint_hessenberg}. In this section we will inspect the adjoint system of $\overline{\texttt{Bidiagonalize}}$, and simplify it considerably by exploiting sparsity in $\bar{A}, \bar{v}, \bar{Q}, \bar{H}$ and $\bar{r}$.
+
+The sparsity patterns of $\nabla_{\bar{Q}} \rho$, $\nabla_{\bar{H}} \rho$, and $\nabla_{\bar{r}} \rho$ match those of $\bar{Q}, \bar{H}, \bar{r}$, due to the linear nature of \texttt{extract}:
+$$\nabla_{\bar{Q}} \rho = \begin{bmatrix}\mathbf{0} & \nabla_{l_1}\rho & \mathbf{0} & \nabla_{l_2}\rho & \cdots & \mathbf{0} & \nabla_{l_k}\rho \\ \nabla_{r_1}\rho & \mathbf{0} & \nabla_{r_2}\rho & \mathbf{0} &  \cdots & \nabla_{r_k}\rho & \mathbf{0} \end{bmatrix} \in \mathbb{R}^{(N+M) \times K} \qquad \nabla_{\bar{r}} \rho = \begin{pmatrix}\mathbf{0} \\ \nabla_{r} \rho \end{pmatrix} \in \mathbb{R}^{N+M}$$
+$$\nabla_{\bar{H}} \rho = \begin{bmatrix}
+    0 & \nabla_{\alpha_1}\rho & 0  & 0 & 0 & 0 & 0 & 0\\
+    0 & 0  & \nabla_{\beta_1}\rho & 0 & 0 & 0 & 0 & 0\\
+    0 & 0  & 0 & \nabla_{\alpha_2}\rho & 0 & 0 & 0 & 0\\
+    0 & 0 & 0 & 0 & \nabla_{\beta_2}\rho & 0 & 0 & 0\\
+    0 & 0 & 0 & 0 & 0 & \ddots & 0 & 0\\
+    0 & 0 & 0 & 0 & 0 & 0 & \nabla_{\beta_{K-1}}\rho & 0\\
+    0 & 0 & 0 & 0 & 0 & 0  & 0 & \nabla_{\alpha_K}\rho\\
+    0 & 0 & 0 & 0 & 0 & 0  & 0 & 0\\
+    \end{bmatrix} \in \mathbb{R}^{2K \times 2K}$$
+We will look at the constraints \eqref{eq:adjoint_hessenberg_constraint1} through \eqref{eq:adjoint_hessenberg_constraint4} and determine further sparsity patterns in the adjoint variables $\Lambda, \Gamma, \lambda, \gamma$.
+
 
 \subsubsection{Constraint \eqref{eq:adjoint_hessenberg_constraint1}}
 \begin{align}
-0 &= \nabla_{Q} \rho + A^\top \Lambda - \Lambda H^\top + \lambda (e_{1})^\top 
-   + Q(I_{\leq} \circ \Gamma) + Q(I_{\leq} \circ \Gamma)^\top + r \gamma^\top
+0 &= \nabla_{\bar{Q}} \rho + \bar{A}^\top \Lambda - \Lambda \bar{H}^\top + \lambda (e_{1})^\top 
+   + \bar{Q}(I_{\leq} \circ \Gamma) + \bar{Q}(I_{\leq} \circ \Gamma)^\top + \bar{r} \gamma^\top
 \end{align}
-It is most easily shown by choosing a small $k=3$ and seeing the concrete pattern.
-The sparsity patterns of $\nabla_Q \rho$ and $\nabla_H \rho$ are the following, due to the way we 
-$$\nabla_Q \rho = \begin{bmatrix}\mathbf{0} & \nabla_{l_1}\rho & \mathbf{0} & \nabla_{l_2}\rho & \cdots & \mathbf{0} & \nabla_{l_k}\rho \\ \nabla_{r_1}\rho & \mathbf{0} & \nabla_{r_2}\rho & \mathbf{0} &  \cdots & \nabla_{r_k}\rho & \mathbf{0} \end{bmatrix} \in \mathbb{R}^{(N+M) \times K}$$
+
+\subsubsection{Constraint \eqref{eq:adjoint_hessenberg_constraint2}}
+\begin{align}
+    0 &= \nabla_{\bar{H}} \rho - \bar{Q}^\top \Lambda + I_{\leq} \circ \Sigma
+\end{align}
 
 
+\subsubsection{Constraint \eqref{eq:adjoint_hessenberg_constraint3}}
+\begin{align}
+    0 &= \nabla_{\bar{r}} \rho - \Lambda e_{K} + \bar{Q} \gamma 
+    \\
+    &= \begin{pmatrix}\mathbf{0} \\ \nabla_{r} \rho \end{pmatrix} - \lambda_k + \bar{Q} \gamma
+\end{align}
+
+\subsubsection{Constraint \eqref{eq:adjoint_hessenberg_constraint4}}
+\begin{align}
+    0 &= \nabla_{c} \rho - \bar{v}^\top \lambda
+\end{align}
+\\
+\subsubsection{Step 2: ???}
+
+\subsubsection{Step 3: Profit}
+We can now name the columns of $\Lambda$ 
+$$\Lambda = \begin{bmatrix}\varphi_1 & \mathbf{0} & \varphi_2 & \mathbf{0} & \cdots &\varphi_k & \mathbf{0}\\ \mathbf{0} & \xi_1 & \mathbf{0} & \xi_2 &  \cdots  & \mathbf{0} & \xi_k \end{bmatrix} \in \mathbb{R}^{(N+M) \times K}$$
+the entries of lower triangular $\Gamma$ as 
+$$\Gamma = \begin{bmatrix} 
+    \omega_{11} & 0 & 0 & 0 & 0 & 0 \\
+    0 & \sigma_{11} & 0 & 0 & 0 & 0 \\
+    \omega_{21} & 0 & \omega_{22} & 0 & 0 & 0 \\
+    0 & \sigma_{21} & 0 & \sigma_{22} & 0 & 0 \\
+    \omega_{31} & 0 & \omega_{32} & 0 & \omega_{33} & 0 \\
+    0 & \sigma_{31} & 0 & \sigma_{32} & 0 & \sigma_{33} \\
+\end{bmatrix}$$
+and the entries of $\lambda$ as 
+$$\lambda = \begin{bmatrix}
+    \mathbf{0} \\ \nu
+\end{bmatrix}$$
 
 
 \subsection{Columnwise expanded unstable adjoint}
