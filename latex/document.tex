@@ -216,29 +216,27 @@ Next, we will get expressions for the remaining columns of $\Lambda$ and $\Gamma
 \begin{align}
     \eqref{eq:adjoint_hessenberg_constraint4} \iff c\nabla_{c} \rho = q_1^\top \lambda\label{eq:get_q1_top_lambda}
 \end{align}
-We now turn to adjoint system constraint \eqref{eq:adjoint_hessenberg_constraint1}, left-multiply $Q^\top$ and then mask away the strict lower triangular part of $\Gamma$:
+We now turn to adjoint system constraint \eqref{eq:adjoint_hessenberg_constraint1}, left-multiply $Q^\top$ and then apply a mask to consider only the upper triangular part of the equations:
 \begin{align*}
-    \eqref{eq:adjoint_hessenberg_constraint1} &\overset{\eqref{eq:hessenberg_forward_constraint3}, \eqref{eq:hessenberg_forward_constraint5}}{\implies} \empty & \mathbf{0} &= Q^\top \nabla_{Q} \rho + Q^\top A^\top \Lambda - Q^\top \Lambda H^\top + Q^\top \lambda (e_{1})^\top + (I_{\leq} \circ \Gamma) + (I_{\leq} \circ \Gamma)^\top
+    \eqref{eq:adjoint_hessenberg_constraint1} &\overset{\eqref{eq:hessenberg_forward_constraint3}, \eqref{eq:hessenberg_forward_constraint5}}{\implies} \empty & \mathbf{0} &= Q^\top \nabla_{Q} \rho + Q^\top A^\top \Lambda - Q^\top \Lambda H^\top + Q^\top \lambda (e_{1})^\top + \Gamma + \Gamma^\top
     \\
-    \empty &\;\implies\; \empty & \mathbf{0} &= I_\geq \circ \bigg[Q^\top \nabla_{Q} \rho + Q^\top A^\top \Lambda - Q^\top \Lambda H^\top + Q^\top \lambda (e_{1})^\top + (I_{\leq} \circ \Gamma) + I_{\geq} \circ \Gamma^\top\bigg]
+    \empty &\;\implies\; \empty & \mathbf{0} &= I_\geq \circ \bigg[Q^\top \nabla_{Q} \rho + Q^\top A^\top \Lambda - Q^\top \Lambda H^\top + Q^\top \lambda (e_{1})^\top + \Gamma + \Gamma^\top\bigg]
     \\
-    \empty & \empty & &= I_\geq \circ \bigg[Q^\top \nabla_{Q} \rho + Q^\top A^\top \Lambda - Q^\top \Lambda H^\top + Q^\top \lambda (e_{1})^\top\bigg] + \text{diag}(\Gamma) +  I_{\geq} \circ \Gamma^\top
-     \\
-    \empty & \empty & &= I_\geq \circ \bigg[Q^\top \nabla_{Q} \rho + Q^\top A^\top \Lambda - Q^\top \Lambda H^\top + Q^\top \lambda (e_{1})^\top\bigg] + (I + I_{\geq}) \circ \Gamma^\top
+    \empty & \empty & &= I_\geq \circ \bigg[Q^\top \nabla_{Q} \rho + Q^\top A^\top \Lambda - Q^\top \Lambda H^\top + Q^\top \lambda (e_{1})^\top\bigg] + \text{diag}(\Gamma) + \Gamma^\top
 \end{align*}
 We now inspect column $i$ in this matrix equation. We will use sparsity of $H$ to rewrite the matrix product $Q^\top \Lambda H^\top$, and we will apply some simplifications with the mask $I_\geq$:
 \begin{align}
-    \mathbf{0} &= \left(I_\geq \circ \bigg[Q^\top \nabla_{Q} \rho + Q^\top A^\top \Lambda - Q^\top \Lambda H^\top + Q^\top \lambda (e_{1})^\top\bigg]\right)e_i + \left((I + I_{\geq}) \circ \Gamma^\top\right) e_i \nonumber
+    \mathbf{0} &= \left(I_\geq \circ \bigg[Q^\top \nabla_{Q} \rho + Q^\top A^\top \Lambda - Q^\top \Lambda H^\top + Q^\top \lambda (e_{1})^\top\bigg]\right)e_i + \left(\text{diag}(\Gamma) + \Gamma^\top\right) e_i \nonumber
     \\
-    &= I_\geq e_i \circ \bigg[Q^\top \nabla_{q_i} \rho + Q^\top A^\top \lambda_i - Q^\top \Lambda H^\top e_i + Q^\top \lambda (e_{1})^\top e_i\bigg] + (e_i + I_{\geq}e_i) \circ \Gamma^\top e_i \nonumber
+    &= I_\geq e_i \circ \bigg[Q^\top \nabla_{q_i} \rho + Q^\top A^\top \lambda_i - Q^\top \Lambda H^\top e_i + Q^\top \lambda (e_{1})^\top e_i\bigg] + \text{diag}(\Gamma)e_i + \Gamma^\top e_i \nonumber
     \\
-    &= I_\geq e_i \circ \bigg[Q^\top \nabla_{q_i} \rho + Q^\top A^\top \lambda_i - Q^\top \left(\sum_{j=i-1}^{K} \lambda_j h_{ij}\right)\bigg] +(I_\geq e_i) \circ Q^\top \lambda \delta_{i=1} + (e_i + I_{\geq}e_i) \circ \Gamma^\top e_i \nonumber
+    &= I_\geq e_i \circ \bigg[Q^\top \nabla_{q_i} \rho + Q^\top A^\top \lambda_i - Q^\top \left(\sum_{j=i-1}^{K} \lambda_j h_{ij}\right)\bigg] +(I_\geq e_i) \circ Q^\top \lambda \delta_{i=1} + \Gamma_{ii}e_i + \Gamma^\top e_i \nonumber
     \\
-    &= I_\geq e_i \circ \bigg[Q^\top \nabla_{q_i} \rho + Q^\top A^\top \lambda_i - \sum_{j=i-1}^{K} h_{ij}Q^\top\lambda_j\bigg] + e_1q_1^\top \lambda \delta_{i=1} + (e_i + I_{\geq}e_i) \circ \Gamma^\top e_i \nonumber
+    &= I_\geq e_i \circ \bigg[Q^\top \nabla_{q_i} \rho + Q^\top A^\top \lambda_i - \sum_{j=i-1}^{K} h_{ij}Q^\top\lambda_j\bigg] + e_1q_1^\top \lambda \delta_{i=1} + \Gamma_{ii}e_i + \Gamma^\top e_i \nonumber
     \\
-    &\!\overset{\eqref{eq:get_q1_top_lambda}}{=} I_\geq e_i \circ \bigg[Q^\top \nabla_{q_i} \rho + Q^\top A^\top \lambda_i\bigg] - I_\geq e_i \circ \left(\sum_{j=i-1}^{K} h_{ij}Q^\top\lambda_j\right) + e_1c\nabla_{c} \rho \delta_{i=1} + (e_i + I_{\geq}e_i) \circ \Gamma^\top e_i \nonumber
+    &\!\overset{\eqref{eq:get_q1_top_lambda}}{=} I_\geq e_i \circ \bigg[Q^\top \nabla_{q_i} \rho + Q^\top A^\top \lambda_i\bigg] - I_\geq e_i \circ \left(\sum_{j=i-1}^{K} h_{ij}Q^\top\lambda_j\right) + e_1c\nabla_{c} \rho \delta_{i=1} + \Gamma_{ii}e_i + \Gamma^\top e_i \nonumber
     \\
-    &= I_\geq e_i \circ \bigg[Q^\top \nabla_{q_i} \rho + Q^\top A^\top \lambda_i\bigg] - \left(\sum_{j=i-1}^{K} h_{ij} I_\geq e_i \circ Q^\top\lambda_j\right) + e_1c\nabla_{c} \rho \delta_{i=1} + (e_i + I_{\geq}e_i) \circ \Gamma^\top e_i \label{eq:term_round_parentheses}
+    &= I_\geq e_i \circ \bigg[Q^\top \nabla_{q_i} \rho + Q^\top A^\top \lambda_i\bigg] - \left(\sum_{j=i-1}^{K} h_{ij} I_\geq e_i \circ Q^\top\lambda_j\right) + e_1c\nabla_{c} \rho \delta_{i=1} + \Gamma_{ii}e_i + \Gamma^\top e_i \label{eq:term_round_parentheses}
 \end{align}
 We can use \eqref{eq:get_lambda_in_Q_coords} to rewrite the term in round parentheses:
 \begin{align}
@@ -250,15 +248,15 @@ We can use \eqref{eq:get_lambda_in_Q_coords} to rewrite the term in round parent
     \\
     &\;\implies &  I_{\geq}e_i \circ Q^\top \lambda_i &= I_{\geq}e_i \circ \nabla_{H} \rho e_i \nonumber &
 \end{align}
-We plug this into \eqref{eq:term_round_parentheses}, which yields an expression we can use to solve for masked column $i$ of $\Gamma^\top$, requiring knowledge only of the value of $\lambda_i$:
+We plug this into \eqref{eq:term_round_parentheses}, which then yields an expression we can use to solve for a column $i$ of $\Gamma^\top$, requiring knowledge only of the value of $\lambda_i$:
 \begin{align}
-    (e_i + I_{\geq}e_i) \circ \Gamma^\top e_i = - I_\geq e_i \circ \bigg[Q^\top \nabla_{q_i} \rho + Q^\top A^\top \lambda_i\bigg] + \left(\sum_{j=i-1}^{K} h_{ij} I_\geq e_i \circ \nabla_{H} \rho e_i\right) - e_1c\nabla_{c} \rho \delta_{i=1} \label{eq:get_Gamma_i}
+    \Gamma_{ii}e_i + \Gamma^\top e_i = - I_\geq e_i \circ \bigg[Q^\top \nabla_{q_i} \rho + Q^\top A^\top \lambda_i\bigg] + \left(\sum_{j=i-1}^{K} h_{ij} I_\geq e_i \circ \nabla_{H} \rho e_i\right) - e_1c\nabla_{c} \rho \delta_{i=1} \label{eq:get_Gamma_i}
 \end{align}
 \\
-Finally, to solve for $\lambda_i$ and $\lambda$, we look again at \eqref{eq:adjoint_hessenberg_constraint1} and restrict again to column $i$:
+Finally, to solve for $\lambda_i$ and $\lambda$, we look again at \eqref{eq:adjoint_hessenberg_constraint1} and restrict to column $i$:
 \begin{align}
     \eqref{eq:adjoint_hessenberg_constraint1} \implies & \empty & \!\!0 &\!= \!\nabla_{\!q_i} \rho + A^\top \!\lambda_i - \!\Lambda H^{\!\top}\!e_i + \lambda \delta_{i=1} 
-    + Q(I_{\leq} \!\circ \Gamma)e_i + Q(I_{\leq} \!\circ \Gamma)^\top e_i + r \gamma^\top e_i \nonumber
+    + Q\Gamma e_i + Q\Gamma^\top e_i + r \gamma^\top e_i \nonumber
     \\
     &\empty &\empty &\!= \!\nabla_{q_i} \rho + A^\top \lambda_i - \!\sum_{j=i-1}^{K} h_{ij} \lambda_j + \lambda \delta_{i=1} + Q(\Gamma + \Gamma^\top)e_i + r \gamma^\top e_i \nonumber
     \\
@@ -267,12 +265,80 @@ Finally, to solve for $\lambda_i$ and $\lambda$, we look again at \eqref{eq:adjo
       h_{i, i\!-\!1} \lambda_{i\!-\!1} & \!\!i > 1
    \end{array}\!\!\bigg\} &\!= \!\nabla_{q_i} \rho + A^\top \lambda_i - \!\sum_{j=i}^{K} h_{ij} \lambda_j + Q(\Gamma + \Gamma^\top)e_i + r \gamma^\top e_i \label{eq:get_lambda_i}
 \end{align}
-We now have all equations necessary to solve for all adjoint variables. There is a part that we have not yet addressed: \eqref{eq:get_Gamma_i} depends on accessing column $i$ of the symmetric matrix $\Gamma + \Gamma^\top$. In \eqref{eq:get_Gamma_i}, we however only solve for a masked column $i$ of $\Gamma^\top$. Due to symmetry, this masked column will equal If we solve in reverse order from $K$th to $1$st masked column, we will be able to access the full column $i$ of $\Gamma + \Gamma^\top$. The $i=K$th masked column will effectively not be masked, as $I_\geq e_K = \mathbf{1}e_K$. Due to symmetry, this column will also be the same as 
+We now have all equations necessary to solve for all adjoint variables. There is a part that we have not yet addressed: In \eqref{eq:get_lambda_i}, we will need access to $(\Gamma + \Gamma^\top)e_i$, however \eqref{eq:get_Gamma_i} will only give us $\Gamma^\top e_i$. How we do this is best explained with an example.
+\newtheorem{example}{Example}
+\begin{example}[Construction of $\Gamma + \Gamma^\top$]\label{ex:construction_Gamma_Gamma_top}
+Let $K=4$. For decreasing $i$ starting from $K$ down to $1$, the known entries in upper triangular $\Gamma^\top \in \mathbb{R}^{4 \times 4}$ will evolve as follows, where $?$ denotes unknown entries and $*$ denotes known entries:
+\begin{align*}
+    \;\;\;\;\;\;\Gamma^\top:
+\begin{array}{c} i = 4 \\
+    \begin{bmatrix}
+    ? & ? & ? & * \\
+    0 & ? & ? & * \\
+    0 & 0 & ? & * \\
+    0 & 0 & 0 & * \\
+\end{bmatrix} \end{array} \qquad
+\begin{array}{c} i = 3  \\
+\begin{bmatrix}
+    ? & ? & * & * \\
+    0 & ? & * & * \\
+    0 & 0 & * & * \\
+    0 & 0 & 0 & * \\
+\end{bmatrix} \end{array} \qquad
+\begin{array}{c} i = 2 \\
+\begin{bmatrix}
+    ? & * & * & * \\
+    0 & * & * & * \\
+    0 & 0 & * & * \\
+    0 & 0 & 0 & * \\
+\end{bmatrix} \end{array} \qquad
+\begin{array}{c} i = 1 \\
+\begin{bmatrix}
+    * & * & * & * \\
+    0 & * & * & * \\
+    0 & 0 & * & * \\
+    0 & 0 & 0 & * \\
+\end{bmatrix} \end{array} \qquad
+\end{align*}
+This is enough information to then also determine the $i$th column of symmetric $\Gamma + \Gamma^\top$, whose entries we will uncover in the following sequence:
+\begin{align*}
+    \Gamma + \Gamma^\top:
+\begin{array}{c} i = 4 \\
+    \begin{bmatrix}
+    ? & ? & ? & * \\
+    ? & ? & ? & * \\
+    ? & ? & ? & * \\
+    * & * & * & * \\
+\end{bmatrix} \end{array} \qquad
+\begin{array}{c} i = 3  \\
+\begin{bmatrix}
+    ? & ? & * & * \\
+    ? & ? & * & * \\
+    * & * & * & * \\
+    * & * & * & * \\
+\end{bmatrix} \end{array} \qquad
+\begin{array}{c} i = 2 \\
+\begin{bmatrix}
+    ? & * & * & * \\
+    * & * & * & * \\
+    * & * & * & * \\
+    * & * & * & * \\
+\end{bmatrix} \end{array} \qquad
+\begin{array}{c} i = 1 \\
+\begin{bmatrix}
+    * & * & * & * \\
+    * & * & * & * \\
+    * & * & * & * \\
+    * & * & * & * \\
+\end{bmatrix} \end{array} \qquad
+\end{align*}
+\end{example}
+We now give the order in which to apply all the equations: 
 \\
-What remains is a solution order such that every equation's right hand side depends only on previously computed variables:
-
-Begin by using \eqref{eq:get_gamma} to get $\gamma$, then follow that up with \eqref{eq:get_last_lambda} to get $\lambda_K$. Now, for $i = K-1$ to $1$, we have the following loop:
-At iteration $i$, we will have computed $\lambda_i$. We then use \eqref{eq:get_Gamma_i} to get a column of the upper-triangular part of $\Gamma^\top$.
+Initially, use \eqref{eq:get_gamma} to get $\gamma$, then follow that up with \eqref{eq:get_last_lambda} to get $\lambda_K$. 
+\\Loop for $i = K$ down to $1$:
+\\
+Use \eqref{eq:get_Gamma_i} to get $\Gamma^\top e_i$ to then get $(\Gamma + \Gamma^\top)e_i$. Use in \eqref{eq:get_lambda_i} to solve for $\lambda_{i-1}$, or, if $i=1$, $\lambda$.
 
 \subsection{Derivation of the Stable Adjoint System} \label{subsec:derivation_stable_adjoint_system}
 As described in \ref{sec:bidiag_through_hessenberg}, we can use $\overline{\texttt{Bidiagonalize}}_K$ to (inefficiently) bidiagonalize any matrix $A$ with initial vector $v$. The detour through $\texttt{Hessenberg}$ let's us use the adjoint system of Hessenberg Factorization described in \ref{subsec:adjoint_hessenberg}. In this section we will inspect the adjoint system of $\overline{\texttt{Bidiagonalize}}_K$, and simplify it considerably by exploiting sparsity in $\dddot{A}, \dddot{v}, \dddot{Q}, \dddot{H}$ and $\dddot{r}$.
@@ -420,7 +486,6 @@ The adjoint method provides an elegant way to compute parameter gradients of los
 \\
 \\
 Let $s : \theta \mapsto x$ be a numerical solver that yields a solution $x$ to some problem $\theta$, with $\text{dim}(\theta) = P$ and $\text{dim}(x) = X$. Assume also that we know an associated constraint function $c : x \mapsto \mathbb{R}^X$ that evaluates all the constraints of the problem, for which $c(s(\theta), \theta) = \mathbf{0}$ for all $\theta$. Additionally, require that $\frac{\partial c}{\partial \theta}$ is everywhere nonsingular. Assume also that we have a loss function $\ell : x \mapsto \mathbb{R}$ that depends on the solution $x$ of the problem. We are interested in $\nabla_\theta \ell(s(\theta))$, the gradient of $\ell$ with respect to the parameters $\theta$.
-\newtheorem{example}{Example}
 \begin{example}[Hessenberg Factorization]
     A fitting example would be $s = $ \texttt{Hessenberg}, which implies that $\theta = (A, v)$ and $x = (Q, H, r, c)$. The associated constraint function would be the concatenation of constraints \eqref{eq:hessenberg_forward_constraint1} through \eqref{eq:hessenberg_forward_constraint5}. We see that, for this example, $c(x, \theta) = \mathbf{0}$ for all solutions $(Q, H, r, c)$ if and only if they correctly Hessenberg-factorize from $\theta$ = $(A, v)$.
 \end{example}
