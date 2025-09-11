@@ -78,11 +78,12 @@ While Bidiagonalization has well-understood forward algorithms and constraints, 
 Let $e_j$ be the $j$th unit vector. Denote by ``$\circ$'' the element-wise 
 matrix product which binds weaker than the standard matrix product and stronger than addition, and define the matrices
 \begin{align*}
+\mathbf{1} := [1]_{i,j=1}^K \qquad
 I_{\leq} := [\delta_{i \leq j}]_{i,j=1}^K \qquad
 I_{<} := [\delta_{i < j}]_{i,j=1}^K \qquad
 I_{\ll} := [\delta_{i+1 < j}]_{i,j=1}^K
 \end{align*}
-so that for example, $I_{\leq} \circ A$ extracts the lower triangular matrix 
+so that for example, $\mathbf{1} \circ A = A$, $I_{\leq} \circ A$ extracts the lower triangular matrix 
 of $A$ (including the diagonal), and $I_{\ll} \circ A = 0$ enforces Hessenberg form.
 
 \subsection{Matrix free linear algebra}
@@ -139,16 +140,16 @@ Q^\top r &= 0 \label{eq:hessenberg_forward_constraint5}
 
 
 \subsection{Hessenberg factorization generalizes Bidiagonalization}\label{sec:bidiag_through_hessenberg}
-To compute $\texttt{Bidiagonalize}_K(A, v) = (L, R, B, r, c)$ for any $A \in \mathbb{R}^{N \times M}$ and $v \in \mathbb{R}^M$ using Hessenberg factorization, we construct the symmetric matrix $\bar{A}$ and augmented vector $\bar{v}$:
-$$\bar{A} := \begin{bmatrix}\mathbf{0} & A \\ A^\top & \mathbf{0}\end{bmatrix} \in \mathbb{R}^{(N+M) \times (N+M)} \quad \text{and} \quad \bar{v} := \begin{pmatrix}\mathbf{0} \\ v \end{pmatrix} \in \mathbb{R}^{N+M}$$
-We define the operation $\texttt{augment}: (A, v) \mapsto (\bar{A}, \bar{v})$ as the augmentation of a matrix and vector to this symmetric matrix and padded vector.
+To compute $\texttt{Bidiagonalize}_K(A, v) = (L, R, B, r, c)$ for any $A \in \mathbb{R}^{N \times M}$ and $v \in \mathbb{R}^M$ using Hessenberg factorization, we construct the symmetric matrix $\dddot{A}$ and augmented vector $\dddot{v}$:
+$$\dddot{A} := \begin{bmatrix}\mathbf{0} & A \\ A^\top & \mathbf{0}\end{bmatrix} \in \mathbb{R}^{(N+M) \times (N+M)} \quad \text{and} \quad \dddot{v} := \begin{pmatrix}\mathbf{0} \\ v \end{pmatrix} \in \mathbb{R}^{N+M}$$
+We define the operation $\texttt{augment}: (A, v) \mapsto (\dddot{A}, \dddot{v})$ as the augmentation of a matrix and vector to this symmetric matrix and padded vector.
 Applying Hessenberg factorization for $2K$ iterations to this augmented input yields
-$\texttt{Hessenberg}_{2K}(\bar{A}, \bar{v}) = (\bar{Q}, \bar{H}, \bar{r}, c)$
+$\texttt{Hessenberg}_{2K}(\dddot{A}, \dddot{v}) = (\dddot{Q}, \dddot{H}, \dddot{r}, c)$
 which are directly related to $(L, R, B, r, c)$ through the following sparse equations:
 
-$$\bar{Q} = \begin{bmatrix}\mathbf{0} & l_1 & \mathbf{0} & l_2 & \cdots & \mathbf{0} & l_k \\ r_1 & \mathbf{0} & r_2 & \mathbf{0} &  \cdots & r_k & \mathbf{0} \end{bmatrix} \in \mathbb{R}^{(N+M) \times 2K} \qquad \bar{r} :=\begin{pmatrix}\mathbf{0} \\ r \end{pmatrix} \in \mathbb{R}^{N+M}$$
+$$\dddot{Q} = \begin{bmatrix}\mathbf{0} & l_1 & \mathbf{0} & l_2 & \cdots & \mathbf{0} & l_k \\ r_1 & \mathbf{0} & r_2 & \mathbf{0} &  \cdots & r_k & \mathbf{0} \end{bmatrix} \in \mathbb{R}^{(N+M) \times 2K} \qquad \dddot{r} :=\begin{pmatrix}\mathbf{0} \\ r \end{pmatrix} \in \mathbb{R}^{N+M}$$
 
-$$\bar{H} = \begin{bmatrix}
+$$\dddot{H} = \begin{bmatrix}
 0 & \alpha_1 & 0  & 0 & 0 & 0 & 0 & 0\\
 \alpha_1 & 0  & \beta_1 & 0 & 0 & 0 & 0 & 0\\
 0 & \beta_1  & 0 & \alpha_2 & 0 & 0 & 0 & 0\\
@@ -158,18 +159,18 @@ $$\bar{H} = \begin{bmatrix}
 0 & 0 & 0 & 0 & 0 & \beta_{K-1}  & 0 & \alpha_K\\
 0 & 0 & 0 & 0 & 0 & 0  & \alpha_K & 0\\
 \end{bmatrix} \in \mathbb{R}^{2K \times 2K}$$
-The vectors $l_i$ and $r_i$ in $\bar{Q}$ are exactly the columns of $L$ and $R$, while the bands in $\bar{H}$ hold the entries of the bidiagonal matrix $B$ with duplicated $\alpha_i$ and $\beta_i$ values. The residual vector $\bar{r}$ is simply a padded version of $r$, and the inverse norm $c$ is unchanged.
+The vectors $l_i$ and $r_i$ in $\dddot{Q}$ are exactly the columns of $L$ and $R$, while the bands in $\dddot{H}$ hold the entries of the bidiagonal matrix $B$ with duplicated $\alpha_i$ and $\beta_i$ values. The residual vector $\dddot{r}$ is simply a padded version of $r$, and the inverse norm $c$ is unchanged.
 \\
 We formalize this relationship through a simple linear extraction mapping 
-$$\texttt{extract}: (\bar{Q}, \bar{H}, \bar{r}, c) \mapsto (L, R, B, r, c)$$ 
-that projects away the zeros and extracts the relevant non-zero entries from the Hessenberg outputs.\footnote{The projection from $\bar{H}$ to $B$ is not unique, as $\bar{H}$ contains two copies of each $\alpha_i$ and $\beta_i$. We arbitrarily select the superdiagonal entries and drop the subdiagonal entries. This choice affects the sparsity pattern of $\nabla_{\bar{H}} \rho$ in section \ref{subsec:derivation_stable_adjoint_system}. Any other convex linear combination of each pair would also be valid.} This allows us to theoretically define \textbf{augmented Bidiagonalization} as $$\overline{\texttt{Bidiagonalize}}_K := \texttt{extract} \circ \texttt{Hessenberg}_{2K} \circ \texttt{augment} : (A, v) \mapsto (L, R, B, r, c)$$ which is functionally equivalent to standard Bidiagonalization but inherits the numerical stability properties of Hessenberg factorization's adjoint system. 
+$$\texttt{extract}: (\dddot{Q}, \dddot{H}, \dddot{r}, c) \mapsto (L, R, B, r, c)$$ 
+that projects away the zeros and extracts the relevant non-zero entries from the Hessenberg outputs.\footnote{The projection from $\dddot{H}$ to $B$ is not unique, as $\dddot{H}$ contains two copies of each $\alpha_i$ and $\beta_i$. We arbitrarily select the superdiagonal entries and drop the subdiagonal entries. This choice affects the sparsity pattern of $\nabla_{\dddot{H}} \rho$ in section \ref{subsec:derivation_stable_adjoint_system}. Any other convex linear combination of each pair would also be valid.} This allows us to theoretically define \textbf{augmented Bidiagonalization} as $$\overline{\texttt{Bidiagonalize}}_K := \texttt{extract} \circ \texttt{Hessenberg}_{2K} \circ \texttt{augment} : (A, v) \mapsto (L, R, B, r, c)$$ which is functionally equivalent to standard Bidiagonalization but inherits the numerical stability properties of Hessenberg factorization's adjoint system. 
 \\
 The problem is that this is "computing a lot of zeros". We will show that we can prune the computational graph to minimize work.
 
 \section{Adjoint systems}
 
 \subsection{Adjoint system of Hessenberg Factorization}\label{subsec:adjoint_hessenberg}
-Let $K \in \mathbb{N}_+$, $A \in \mathbb{R}^{N\times N}$, $v \in \mathbb{R}^N$, $H \in \mathbb{R}^{K\times K}$, $Q \in \mathbb{R}^{N\times K}$, $r \in \mathbb{R}^N$, $c \in \mathbb{R}$ satisfy the primal constraints \eqref{eq:hessenberg_forward_constraint1} through \eqref{eq:hessenberg_forward_constraint5}. Let adjoint variables $\Lambda \in \mathbb{R}^{N\times K}$, $\Gamma \in \mathbb{R}^{K\times K}$, $\lambda \in \mathbb{R}^N$, $\gamma \in \mathbb{R}^K$ solve the following system of equations:
+Let $K \in \mathbb{N}_+$, $A \in \mathbb{R}^{N\times N}$, $v \in \mathbb{R}^N$, $H \in \mathbb{R}^{K\times K}$, $Q \in \mathbb{R}^{N\times K}$, $r \in \mathbb{R}^N$, $c \in \mathbb{R}$ satisfy the primal constraints \eqref{eq:hessenberg_forward_constraint1} through \eqref{eq:hessenberg_forward_constraint5}. Let adjoint variables $\Lambda \in \mathbb{R}^{N\times K}$ with $\Lambda e_i = \lambda_i$, $\Gamma \in \mathbb{R}^{K\times K}$, $\lambda \in \mathbb{R}^N$, $\gamma \in \mathbb{R}^K$ solve the following system of equations:
 \begin{align}
 0 &= \nabla_{Q} \rho + A^\top \Lambda - \Lambda H^\top + \lambda (e_{1})^\top 
    + Q(I_{\leq} \circ \Gamma) + Q(I_{\leq} \circ \Gamma)^\top + r \gamma^\top \label{eq:adjoint_hessenberg_constraint1}\\ 
@@ -177,7 +178,7 @@ Let $K \in \mathbb{N}_+$, $A \in \mathbb{R}^{N\times N}$, $v \in \mathbb{R}^N$, 
 0 &= \nabla_{r} \rho - \Lambda e_{K} + Q \gamma \label{eq:adjoint_hessenberg_constraint3}\\
 0 &= \nabla_{c} \rho - v^\top \lambda \label{eq:adjoint_hessenberg_constraint4}
 \end{align}
-The gradients $\nabla_A\rho$ and $\nabla_v\rho$ are then given by\footnote{note a sign difference in $\nabla_v\rho$ due to a typo}:
+The gradients $\nabla_A\rho$ and $\nabla_v\rho$ are then given by\footnote{note a sign difference between \eqref{eq:adjoint_hessenberg_constraint6} and the result in TODO CITE due to a typo}:
 \begin{align}
     \nabla_A\rho &= \Lambda Q^\top \label{eq:adjoint_hessenberg_constraint5} \\
     \nabla_v\rho &= -c\lambda \label{eq:adjoint_hessenberg_constraint6}
@@ -186,44 +187,96 @@ The gradients $\nabla_A\rho$ and $\nabla_v\rho$ are then given by\footnote{note 
 
 \subsection{Solving the Adjoint System}\label{subsec:solving_adjoint_system}
 The output gradients $\nabla_Q\rho$, $\nabla_H\rho$, $\nabla_r\rho$, $\nabla_c\rho$ will have know quantities, so we need only determine the adjoint variables $\Lambda$, $\Gamma$, $\lambda$, $\gamma$.
+\\
+We get expressions for $\lambda_K$ and $\gamma$:
 \begin{align}
-    \eqref{eq:adjoint_hessenberg_constraint3} \iff \lambda_K &= \nabla_r \rho + Q \gamma \label{eq:get_last_lambda}
+    \eqref{eq:adjoint_hessenberg_constraint3} & \iff & \lambda_K &= \nabla_r \rho + Q \gamma \label{eq:get_last_lambda}
     \\
-    \overset{\eqref{eq:hessenberg_forward_constraint3}}{\implies} Q^\top \lambda_K &= Q^\top \nabla_r \rho + Q^\top Q \gamma \nonumber
+    & \;\overset{\eqref{eq:hessenberg_forward_constraint3}}{\implies} &Q^\top \lambda_K &= Q^\top \nabla_r \rho + Q^\top Q \gamma \nonumber
     \\ 
-    &= Q^\top \nabla_r \rho + \gamma \nonumber
+    &&&= Q^\top \nabla_r \rho + \gamma \nonumber
     \\ 
-    \iff \gamma &= Q^\top \lambda_K - Q^\top \nabla_r \rho \label{eq:get_gamma_almost}
+    & \iff & \gamma &= Q^\top \lambda_K - Q^\top \nabla_r \rho \label{eq:get_gamma_almost}
 \end{align}
 To evaluate $Q^\top \lambda_k$, inspect \eqref{eq:adjoint_hessenberg_constraint2}:
-\begin{align*}
-    \eqref{eq:adjoint_hessenberg_constraint2} \iff &Q^\top \Lambda = \nabla_{H} \rho + I_{\ll} \circ \Sigma
-    \\
-    \implies & I_{\geq} \circ Q^\top \Lambda = I_{\geq} \circ \nabla_{H} \rho + I_{\geq} \circ I_{\ll} \circ \Sigma
-    \\ 
-    = &I_{\geq} \circ \nabla_{H} \rho
-    \\
-    \implies & Q^\top \lambda_K = \nabla_{H} \rho e_K
-\end{align*}
-This lets us express $\gamma$ in terms of the known quantities:
 \begin{align}
-    \eqref{eq:get_gamma_almost} \iff \gamma &= \nabla_{H} \rho e_K - Q^\top \nabla_r \rho \label{eq:get_gamma}
-\end{align}
-We now turn to \eqref{eq:adjoint_hessenberg_constraint1}.
-\begin{align*}
-    \eqref{eq:adjoint_hessenberg_constraint1} \overset{\eqref{eq:hessenberg_forward_constraint3}}{\implies} Q^\top \nabla_{Q} \rho + Q^\top A^\top \Lambda - Q^\top \Lambda H^\top + Q^\top \lambda (e_{1})^\top + (I_{\leq} \circ \Gamma) + (I_{\leq} \circ \Gamma)^\top = 0
+    \eqref{eq:adjoint_hessenberg_constraint2} & \iff &Q^\top \Lambda &= \nabla_{H} \rho + I_{\ll} \circ \Sigma \nonumber
     \\
-    \implies 
+    & \;\implies & (\mathbf{1} - I_{\ll}) \circ Q^\top \Lambda &= (\mathbf{1} - I_{\ll}) \circ \nabla_{H} \rho + (\mathbf{1} - I_{\ll}) \circ I_{\ll} \circ \Sigma \nonumber
+    \\ 
+    &&&= (\mathbf{1} - I_{\ll}) \circ \nabla_{H} \rho \label{eq:get_lambda_in_Q_coords}
+    \\
+    & \;\implies & Q^\top \lambda_K &= \nabla_{H} \rho e_K \nonumber
+    \\
+    &\;\overset{\eqref{eq:get_gamma_almost}}{\implies} &  \gamma &= \nabla_{H} \rho e_K - Q^\top \nabla_r \rho \label{eq:get_gamma}
+\end{align}
+This final relation lets us express $\gamma$ in terms of the known quantities, which we can then plug into \eqref{eq:get_last_lambda} to get $\lambda_K$.
+\\
+Next, we will get expressions for the remaining columns of $\Lambda$ and $\Gamma$, as well as for $\lambda$. As a preliminary, from primal constraints \eqref{eq:hessenberg_forward_constraint2} we have $v = q_1/c$, yielding 
+\begin{align}
+    \eqref{eq:adjoint_hessenberg_constraint4} \iff c\nabla_{c} \rho = q_1^\top \lambda\label{eq:get_q1_top_lambda}
+\end{align}
+We now turn to adjoint system constraint \eqref{eq:adjoint_hessenberg_constraint1}, left-multiply $Q^\top$ and then mask away the strict lower triangular part of $\Gamma$:
+\begin{align*}
+    \eqref{eq:adjoint_hessenberg_constraint1} &\overset{\eqref{eq:hessenberg_forward_constraint3}, \eqref{eq:hessenberg_forward_constraint5}}{\implies} \empty & \mathbf{0} &= Q^\top \nabla_{Q} \rho + Q^\top A^\top \Lambda - Q^\top \Lambda H^\top + Q^\top \lambda (e_{1})^\top + (I_{\leq} \circ \Gamma) + (I_{\leq} \circ \Gamma)^\top
+    \\
+    \empty &\;\implies\; \empty & \mathbf{0} &= I_\geq \circ \bigg[Q^\top \nabla_{Q} \rho + Q^\top A^\top \Lambda - Q^\top \Lambda H^\top + Q^\top \lambda (e_{1})^\top + (I_{\leq} \circ \Gamma) + I_{\geq} \circ \Gamma^\top\bigg]
+    \\
+    \empty & \empty & &= I_\geq \circ \bigg[Q^\top \nabla_{Q} \rho + Q^\top A^\top \Lambda - Q^\top \Lambda H^\top + Q^\top \lambda (e_{1})^\top\bigg] + \text{diag}(\Gamma) +  I_{\geq} \circ \Gamma^\top
+     \\
+    \empty & \empty & &= I_\geq \circ \bigg[Q^\top \nabla_{Q} \rho + Q^\top A^\top \Lambda - Q^\top \Lambda H^\top + Q^\top \lambda (e_{1})^\top\bigg] + (I + I_{\geq}) \circ \Gamma^\top
 \end{align*}
-From primal constraints \eqref{eq:hessenberg_forward_constraint2} and \eqref{eq:hessenberg_forward_constraint3}, we have $c = 1/||v||$ and $v = q_1/c$, giving \eqref{eq:adjoint_hessenberg_constraint4} $\iff c\nabla_{c} \rho = q_1^\top \lambda$.
-
+We now inspect column $i$ in this matrix equation. We will use sparsity of $H$ to rewrite the matrix product $Q^\top \Lambda H^\top$, and we will apply some simplifications with the mask $I_\geq$:
+\begin{align}
+    \mathbf{0} &= \left(I_\geq \circ \bigg[Q^\top \nabla_{Q} \rho + Q^\top A^\top \Lambda - Q^\top \Lambda H^\top + Q^\top \lambda (e_{1})^\top\bigg]\right)e_i + \left((I + I_{\geq}) \circ \Gamma^\top\right) e_i \nonumber
+    \\
+    &= I_\geq e_i \circ \bigg[Q^\top \nabla_{q_i} \rho + Q^\top A^\top \lambda_i - Q^\top \Lambda H^\top e_i + Q^\top \lambda (e_{1})^\top e_i\bigg] + (e_i + I_{\geq}e_i) \circ \Gamma^\top e_i \nonumber
+    \\
+    &= I_\geq e_i \circ \bigg[Q^\top \nabla_{q_i} \rho + Q^\top A^\top \lambda_i - Q^\top \left(\sum_{j=i-1}^{K} \lambda_j h_{ij}\right)\bigg] +(I_\geq e_i) \circ Q^\top \lambda \delta_{i=1} + (e_i + I_{\geq}e_i) \circ \Gamma^\top e_i \nonumber
+    \\
+    &= I_\geq e_i \circ \bigg[Q^\top \nabla_{q_i} \rho + Q^\top A^\top \lambda_i - \sum_{j=i-1}^{K} h_{ij}Q^\top\lambda_j\bigg] + e_1q_1^\top \lambda \delta_{i=1} + (e_i + I_{\geq}e_i) \circ \Gamma^\top e_i \nonumber
+    \\
+    &\!\overset{\eqref{eq:get_q1_top_lambda}}{=} I_\geq e_i \circ \bigg[Q^\top \nabla_{q_i} \rho + Q^\top A^\top \lambda_i\bigg] - I_\geq e_i \circ \left(\sum_{j=i-1}^{K} h_{ij}Q^\top\lambda_j\right) + e_1c\nabla_{c} \rho \delta_{i=1} + (e_i + I_{\geq}e_i) \circ \Gamma^\top e_i \nonumber
+    \\
+    &= I_\geq e_i \circ \bigg[Q^\top \nabla_{q_i} \rho + Q^\top A^\top \lambda_i\bigg] - \left(\sum_{j=i-1}^{K} h_{ij} I_\geq e_i \circ Q^\top\lambda_j\right) + e_1c\nabla_{c} \rho \delta_{i=1} + (e_i + I_{\geq}e_i) \circ \Gamma^\top e_i \label{eq:term_round_parentheses}
+\end{align}
+We can use \eqref{eq:get_lambda_in_Q_coords} to rewrite the term in round parentheses:
+\begin{align}
+    &\eqref{eq:get_lambda_in_Q_coords}:& (\mathbf{1} - I_{\ll}) \circ Q^\top \Lambda &= (\mathbf{1} - I_{\ll}) \circ \nabla_{H} \rho \nonumber &
+    \\
+    &\;\implies &  (\mathbf{1} - I_{<}) \circ Q^\top \Lambda &= (\mathbf{1} - I_{<}) \circ \nabla_{H} \rho \nonumber &
+    \\
+    &\iff &  I_{\geq} \circ Q^\top \Lambda &= I_{\geq} \circ \nabla_{H} \rho \nonumber &
+    \\
+    &\;\implies &  I_{\geq}e_i \circ Q^\top \lambda_i &= I_{\geq}e_i \circ \nabla_{H} \rho e_i \nonumber &
+\end{align}
+We plug this into \eqref{eq:term_round_parentheses}, which yields an expression we can use to solve for masked column $i$ of $\Gamma^\top$, requiring knowledge only of the value of $\lambda_i$:
+\begin{align}
+    (e_i + I_{\geq}e_i) \circ \Gamma^\top e_i = - I_\geq e_i \circ \bigg[Q^\top \nabla_{q_i} \rho + Q^\top A^\top \lambda_i\bigg] + \left(\sum_{j=i-1}^{K} h_{ij} I_\geq e_i \circ Q^\top\lambda_j\right) - e_1c\nabla_{c} \rho \delta_{i=1} \label{eq:get_Gamma_i}
+\end{align}
+Now, to solve for $\lambda_i$ and $\lambda$, we look again at \eqref{eq:adjoint_hessenberg_constraint1} and restrict again to column $i$:
+\begin{align}
+    \eqref{eq:adjoint_hessenberg_constraint1} \implies & \empty & \!\!0 &\!= \!\nabla_{\!q_i} \rho + A^\top \!\lambda_i - \!\Lambda H^{\!\top}\!e_i + \lambda \delta_{i=1} 
+    + Q(I_{\leq} \!\circ \Gamma)e_i + Q(I_{\leq} \!\circ \Gamma)^\top e_i + r \gamma^\top e_i \nonumber
+    \\
+    &\empty &\empty &\!= \!\nabla_{q_i} \rho + A^\top \lambda_i - \!\sum_{j=i-1}^{K} h_{ij} \lambda_j + \lambda \delta_{i=1} + Q(\Gamma + \Gamma^\top)e_i + r \gamma^\top e_i \nonumber
+    \\
+    \iff&  & \!\!\!\!\!\begin{array}{cc}
+        - \lambda & \!\!i = 1 \\
+      h_{i, i\!-\!1} \lambda_{i\!-\!1} & \!\!i > 1
+   \end{array}\!\!\bigg\} &\!= \!\nabla_{q_i} \rho + A^\top \lambda_i - \!\sum_{j=i}^{K} h_{ij} \lambda_j + Q(\Gamma + \Gamma^\top)e_i + r \gamma^\top e_i \label{eq:get_lambda_i}
+\end{align}
+We now have all the equations necessary to solve for all adjoint variables. What remains is a solution order such that every equation's right hand side depends only on previously computed variables:
+\\
+Begin by using \eqref{eq:get_gamma} to get $\gamma$, then follow that up with \eqref{eq:get_last_lambda} to get $\lambda_K$. Now, for $i = K-1$ to $1$, we have the following loop:
+At iteration $i$, we will have computed $\lambda_i$. We then use \eqref{eq:get_Gamma_i} to get a column of the upper-triangular part of $\Gamma^\top$.
 
 \subsection{Derivation of the Stable Adjoint System} \label{subsec:derivation_stable_adjoint_system}
-As described in \ref{sec:bidiag_through_hessenberg}, we can use $\overline{\texttt{Bidiagonalize}}_K$ to (inefficiently) bidiagonalize any matrix $A$ with initial vector $v$. The detour through $\texttt{Hessenberg}$ let's us use the adjoint system of Hessenberg Factorization described in \ref{subsec:adjoint_hessenberg}. In this section we will inspect the adjoint system of $\overline{\texttt{Bidiagonalize}}_K$, and simplify it considerably by exploiting sparsity in $\bar{A}, \bar{v}, \bar{Q}, \bar{H}$ and $\bar{r}$.
-
-The sparsity patterns of $\nabla_{\bar{Q}} \rho$, $\nabla_{\bar{H}} \rho$, and $\nabla_{\bar{r}} \rho$ match those of $\bar{Q}, \bar{H}, \bar{r}$, due to the linear nature of \texttt{extract}:
-$$\nabla_{\bar{Q}} \rho = \begin{bmatrix}\mathbf{0} & \nabla_{l_1}\rho & \mathbf{0} & \nabla_{l_2}\rho & \cdots & \mathbf{0} & \nabla_{l_k}\rho \\ \nabla_{r_1}\rho & \mathbf{0} & \nabla_{r_2}\rho & \mathbf{0} &  \cdots & \nabla_{r_k}\rho & \mathbf{0} \end{bmatrix} \in \mathbb{R}^{(N+M) \times K} \qquad \nabla_{\bar{r}} \rho = \begin{pmatrix}\mathbf{0} \\ \nabla_{r} \rho \end{pmatrix} \in \mathbb{R}^{N+M}$$
-$$\nabla_{\bar{H}} \rho = \begin{bmatrix}
+As described in \ref{sec:bidiag_through_hessenberg}, we can use $\overline{\texttt{Bidiagonalize}}_K$ to (inefficiently) bidiagonalize any matrix $A$ with initial vector $v$. The detour through $\texttt{Hessenberg}$ let's us use the adjoint system of Hessenberg Factorization described in \ref{subsec:adjoint_hessenberg}. In this section we will inspect the adjoint system of $\overline{\texttt{Bidiagonalize}}_K$, and simplify it considerably by exploiting sparsity in $\dddot{A}, \dddot{v}, \dddot{Q}, \dddot{H}$ and $\dddot{r}$.
+\\
+The sparsity patterns of $\nabla_{\dddot{Q}} \rho$, $\nabla_{\dddot{H}} \rho$, and $\nabla_{\dddot{r}} \rho$ match those of $\dddot{Q}, \dddot{H}, \dddot{r}$, due to the linear nature of \texttt{extract}:
+$$\nabla_{\dddot{Q}} \rho = \begin{bmatrix}\mathbf{0} & \nabla_{l_1}\rho & \mathbf{0} & \nabla_{l_2}\rho & \cdots & \mathbf{0} & \nabla_{l_k}\rho \\ \nabla_{r_1}\rho & \mathbf{0} & \nabla_{r_2}\rho & \mathbf{0} &  \cdots & \nabla_{r_k}\rho & \mathbf{0} \end{bmatrix} \in \mathbb{R}^{(N+M) \times K} \qquad \nabla_{\dddot{r}} \rho = \begin{pmatrix}\mathbf{0} \\ \nabla_{r} \rho \end{pmatrix} \in \mathbb{R}^{N+M}$$
+$$\nabla_{\dddot{H}} \rho = \begin{bmatrix}
     0 & \nabla_{\alpha_1}\rho & 0  & 0 & 0 & 0 & 0 & 0\\
     0 & 0  & \nabla_{\beta_1}\rho & 0 & 0 & 0 & 0 & 0\\
     0 & 0  & 0 & \nabla_{\alpha_2}\rho & 0 & 0 & 0 & 0\\
@@ -233,49 +286,20 @@ $$\nabla_{\bar{H}} \rho = \begin{bmatrix}
     0 & 0 & 0 & 0 & 0 & 0  & 0 & \nabla_{\alpha_K}\rho\\
     0 & 0 & 0 & 0 & 0 & 0  & 0 & 0\\
     \end{bmatrix} \in \mathbb{R}^{2K \times 2K}$$
-We will look at the constraints \eqref{eq:adjoint_hessenberg_constraint1} through \eqref{eq:adjoint_hessenberg_constraint4} and determine further sparsity patterns in the adjoint variables $\Lambda, \Gamma, \lambda, \gamma$.
-
-
-\subsubsection{Constraint \eqref{eq:adjoint_hessenberg_constraint1}}
-\begin{align}
-0 &= \nabla_{\bar{Q}} \rho + \bar{A}^\top \Lambda - \Lambda \bar{H}^\top + \lambda (e_{1})^\top 
-   + \bar{Q}(I_{\leq} \circ \Gamma) + \bar{Q}(I_{\leq} \circ \Gamma)^\top + \bar{r} \gamma^\top
-\end{align}
-
-\subsubsection{Constraint \eqref{eq:adjoint_hessenberg_constraint2}}
-\begin{align}
-    0 &= \nabla_{\bar{H}} \rho - \bar{Q}^\top \Lambda + I_{\leq} \circ \Sigma
-\end{align}
-
-
-\subsubsection{Constraint \eqref{eq:adjoint_hessenberg_constraint3}}
-\begin{align}
-    0 &= \nabla_{\bar{r}} \rho - \Lambda e_{K} + \bar{Q} \gamma 
-    \\
-    &= \begin{pmatrix}\mathbf{0} \\ \nabla_{r} \rho \end{pmatrix} - \lambda_k + \bar{Q} \gamma
-\end{align}
-
-\subsubsection{Constraint \eqref{eq:adjoint_hessenberg_constraint4}}
-\begin{align}
-    0 &= \nabla_{c} \rho - \bar{v}^\top \lambda
-    \\
-    &= \nabla_{c} \rho - \begin{pmatrix}\mathbf{0} \\ v \end{pmatrix}^\top \lambda
-\end{align}
+We will look at the constraints \eqref{eq:adjoint_hessenberg_constraint1} through \eqref{eq:adjoint_hessenberg_constraint4} and determine further sparsity patterns in the adjoint variables $\Lambda, \Gamma, \lambda, \gamma$. We will mark possibly nonzero entries with $*$, and constant zero entries with a $0$.
 \\
-\subsubsection{Step 2: ???}
-We will mark possibly nonzero entries with $*$, and constant zero entries with a $0$.\\
 Starting from \eqref{eq:get_gamma}, replacing $K$ with $2K$, we plug in our sparse gradients and outputs, and show that, for this input, $\gamma \in \mathbb{R}^{2K}$ is alternatingly non-zero and zero.
 \begin{align}
-    \eqref{eq:get_gamma} \implies \gamma &= \nabla_{\bar{H}} \rho e_{2K} - \bar{Q}^\top \nabla_{\bar{r}} \rho = \nabla_{\alpha_{K}} \rho e_{2K-1} - \bar{Q}^\top \begin{pmatrix}\mathbf{0} \\ \nabla_r\rho\end{pmatrix} 
+    \eqref{eq:get_gamma} \implies \gamma &= \nabla_{\dddot{H}} \rho e_{2K} - \dddot{Q}^\top \nabla_{\dddot{r}} \rho = \nabla_{\alpha_{K}} \rho e_{2K-1} - \dddot{Q}^\top \begin{pmatrix}\mathbf{0} \\ \nabla_r\rho\end{pmatrix} 
     \\
-    &= \begin{pmatrix}0 \\ 0 \\ 0 \\ 0 \\ \vdots \\ 0 \\ \nabla_{\alpha_K} \rho \\ 0\end{pmatrix}  - \begin{pmatrix}r_1^\top \\ \mathbf{0}^\top \\ r_2^\top \\ \mathbf{0}^\top \\ \vdots \\\mathbf{0}^\top\\ r_K^\top \\ \mathbf{0}^\top\end{pmatrix} \nabla_{r} \rho = \begin{pmatrix}* \\ 0 \\ * \\ 0 \\ \vdots \\ 0 \\ * \\ 0\end{pmatrix}
+    &= \begin{pmatrix}0 \\ 0 \\ 0 \\ 0 \\ \vdots \\ 0 \\ \nabla_{\alpha_K} \rho \\ 0\end{pmatrix}  - \begin{pmatrix}r_1^\top \\ \mathbf{0}^\top \\ r_2^\top \\ \mathbf{0}^\top \\ \vdots \\\mathbf{0}^\top\\ r_K^\top \\ \mathbf{0}^\top\end{pmatrix} \nabla_{r} \rho \equiv \begin{pmatrix}* \\ 0 \\ * \\ 0 \\ \vdots \\ 0 \\ * \\ 0\end{pmatrix}
 \end{align}
-We plug this pattern into \eqref{eq:get_last_lambda}, which shows that $\lambda_2K$ has the same sparsity pattern as $\bar{v}$:
+We plug this pattern into \eqref{eq:get_last_lambda}, which shows that $\lambda_2K$ has the same sparsity pattern as $\dddot{v}$:
 \begin{align}
-    \eqref{eq:get_last_lambda} \implies \lambda_2K &= \nabla_{\bar{r}} \rho + \bar{Q} \gamma
-    = \begin{pmatrix}\mathbf{0} \\ \nabla_r\rho\end{pmatrix}  + \bar{Q} \begin{pmatrix}* \\ 0 \\ * \\ 0 \\ \vdots \\ 0\\ * \\ 0\end{pmatrix}
-    = \begin{pmatrix}0 \\ 0 \\ \vdots \\ 0 \\ * \\ * \\ \vdots \\ *\end{pmatrix} + \begin{pmatrix}0 \\ 0 \\ \vdots \\ 0 \\ * \\ * \\ \vdots \\ *\end{pmatrix}
-    = \begin{pmatrix}0 \\ 0 \\ \vdots \\ 0 \\ * \\ * \\ \vdots \\ *\end{pmatrix}
+    \eqref{eq:get_last_lambda} \implies \lambda_2K &= \nabla_{\dddot{r}} \rho + \dddot{Q} \gamma
+    \equiv \begin{pmatrix}\mathbf{0} \\ \nabla_r\rho\end{pmatrix}  + \dddot{Q} \begin{pmatrix}* \\ 0 \\ * \\ 0 \\ \vdots \\ 0\\ * \\ 0\end{pmatrix}
+    \equiv \begin{pmatrix}0 \\ 0 \\ \vdots \\ 0 \\ * \\ * \\ \vdots \\ *\end{pmatrix} + \begin{pmatrix}0 \\ 0 \\ \vdots \\ 0 \\ * \\ * \\ \vdots \\ *\end{pmatrix}
+    \equiv \begin{pmatrix}0 \\ 0 \\ \vdots \\ 0 \\ * \\ * \\ \vdots \\ *\end{pmatrix}
 \end{align}
 
 \subsubsection{Step 3: Profit}
@@ -388,7 +412,6 @@ c \nabla c &= r_1^\top\kappa
     \nabla_A &= \sum_{i=1}^k l_i \downarrow_i^\top + \uparrow_i r_i^\top
 \end{align}
 
-
 \subsection{The Adjoint Method to compute gradients}
 The adjoint method provides an elegant way to compute parameter gradients of losses that depend on outputs of parameterized numerical solvers.
 \\
@@ -396,7 +419,7 @@ The adjoint method provides an elegant way to compute parameter gradients of los
 Let $s : \theta \mapsto x$ be a numerical solver that yields a solution $x$ to some problem $\theta$, with $\text{dim}(\theta) = P$ and $\text{dim}(x) = X$. Assume also that we know an associated constraint function $c : x \mapsto \mathbb{R}^X$ that evaluates all the constraints of the problem, for which $c(s(\theta), \theta) = \mathbf{0}$ for all $\theta$. Additionally, require that $\frac{\partial c}{\partial \theta}$ is everywhere nonsingular. Assume also that we have a loss function $\ell : x \mapsto \mathbb{R}$ that depends on the solution $x$ of the problem. We are interested in $\nabla_\theta \ell(s(\theta))$, the gradient of $\ell$ with respect to the parameters $\theta$.
 \newtheorem{example}{Example}
 \begin{example}[Hessenberg Factorization]
-    A fitting example would be $s = $ Hessenberg-factorization, which implies that $\theta = (A, v)$ and $x = (Q, H, r, c)$. The associated constraint function would be the concatenation of \eqref{eq:hessenberg_forward_constraint1} through \eqref{eq:hessenberg_forward_constraint5}. We see that, for this example, $c(x, \theta) = \mathbf{0}$ for all solutions $(Q, H, r, c)$ if and only if they correctly Hessenberg-factorize from $\theta$ = $(A, v)$.
+    A fitting example would be $s = $ \texttt{Hessenberg}, which implies that $\theta = (A, v)$ and $x = (Q, H, r, c)$. The associated constraint function would be the concatenation of constraints \eqref{eq:hessenberg_forward_constraint1} through \eqref{eq:hessenberg_forward_constraint5}. We see that, for this example, $c(x, \theta) = \mathbf{0}$ for all solutions $(Q, H, r, c)$ if and only if they correctly Hessenberg-factorize from $\theta$ = $(A, v)$.
 \end{example}
 Because $c(s(\theta), \theta) = \mathbf{0}$ is constantly zero, the total derivative $\frac{d}{d\theta} c$ is also zero. With the chain rule, we have:
 
@@ -426,20 +449,23 @@ When $P \ll X$ (few parameters, high-dimensional state), the adjoint method is d
 
 \section{Numerical Stability and Experiments}
 \subsection{Reprojection and Reorthonormalization}
-Let $m$ be a mask vector with elements in $\{0, 1\}$ and $\circ$ denoting the element-wise product. Let $L$ be an orthonormal matrix, and $q$ and $c$ be vectors. We are given a constraint of the form
+Let $m$ be a mask vector with entries from $\{0, 1\}$. Let $L$ be an orthonormal matrix, and $q$ and $c$ be vectors. Consider a constraint of the form
 $$m \circ (L^\top q) = m \circ c$$
-The constraint states: "Within the bounds of the mask $m$, we have that $q$ expressed in the basis of $L$ equals $c$".
-Given a numerically contaminated estimate $q_0$ of a solution $q$, we can improve our estimate of $q$ by \textit{reprojecting} it against $L$.
-The following motivates following step, which can be repeated if necessary.
+Paraphrased: "Within the bounds of the mask $m$, we have that $q$ expressed in the basis of $L$ equals $c$".
+If we have access to a numerical estimate $q_0$ of a solution $q$, we can get an improved estimate $q_1$ by \textit{reprojecting} it against $L$.
 \begin{align*}
-    q_0 &= q_0 - LL^\top q_0 + LL^\top q_0
+    q_0 &= q_0 - L (m \circ L^\top q_0) + L (m \circ L^\top q_0)
     \\
-    &= (I -  LL^\top ) q_0 + Lc
-    \\
-    &=: q_1
+    &= q_0 - L (m \circ L^\top q_0) + L (m \circ c)
+\end{align*}
+The following motivates following update step, which can be repeated if necessary.
+\begin{align*}
+    q_1 &\leftarrow q_0 - L (m \circ L^\top q_0) + L (m \circ c)
 \end{align*}
 In the case of Hessenberg factorization, we have the constraint
-$Q^\top q_i = e_i$ in which case we call the reprojection step followed by normalization \textit{reorthonormalization}.
+$Q^\top q_i = e_i$ \eqref{eq:hessenberg_forward_constraint3} in which case we call the reprojection step followed by normalization \textit{reorthonormalization}.
+\\
+For Bidiagonalization, we have similar constraints $L^\top l_i = e_i$ \eqref{eq:bidiag_forward_constraint4} and $R^\top r_i = e_i$ \eqref{eq:bidiag_forward_constraint5}. Empirically, we find that two repetitions of the reprojection step are necessary to eliminate numerical errors. TODO show this on a Hilbert matrix?
 
 
 \end{document}
