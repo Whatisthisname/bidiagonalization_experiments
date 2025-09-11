@@ -186,7 +186,7 @@ The gradients $\nabla_A\rho$ and $\nabla_v\rho$ are then given by\footnote{note 
 
 
 \subsection{Solving the Adjoint System}\label{subsec:solving_adjoint_system}
-The output gradients $\nabla_Q\rho$, $\nabla_H\rho$, $\nabla_r\rho$, $\nabla_c\rho$ will have know quantities, so we need only determine the adjoint variables $\Lambda$, $\Gamma$, $\lambda$, $\gamma$.
+The output gradients $\nabla_Q\rho$, $\nabla_H\rho$, $\nabla_r\rho$, $\nabla_c\rho$ will have know quantities, so we need only determine the adjoint variables $\Lambda$, $\Gamma$, $\lambda$, $\gamma$. $\Gamma$ is involved only in equation \eqref{eq:adjoint_hessenberg_constraint1} in which only the lower triangular part is accessed, so for convenience we will define $\Gamma$ to be lower triangular, meaning we can effectively drop the mask $\Gamma := I_{\leq} \circ \Gamma$.
 \\
 We get expressions for $\lambda_K$ and $\gamma$:
 \begin{align}
@@ -252,9 +252,10 @@ We can use \eqref{eq:get_lambda_in_Q_coords} to rewrite the term in round parent
 \end{align}
 We plug this into \eqref{eq:term_round_parentheses}, which yields an expression we can use to solve for masked column $i$ of $\Gamma^\top$, requiring knowledge only of the value of $\lambda_i$:
 \begin{align}
-    (e_i + I_{\geq}e_i) \circ \Gamma^\top e_i = - I_\geq e_i \circ \bigg[Q^\top \nabla_{q_i} \rho + Q^\top A^\top \lambda_i\bigg] + \left(\sum_{j=i-1}^{K} h_{ij} I_\geq e_i \circ Q^\top\lambda_j\right) - e_1c\nabla_{c} \rho \delta_{i=1} \label{eq:get_Gamma_i}
+    (e_i + I_{\geq}e_i) \circ \Gamma^\top e_i = - I_\geq e_i \circ \bigg[Q^\top \nabla_{q_i} \rho + Q^\top A^\top \lambda_i\bigg] + \left(\sum_{j=i-1}^{K} h_{ij} I_\geq e_i \circ \nabla_{H} \rho e_i\right) - e_1c\nabla_{c} \rho \delta_{i=1} \label{eq:get_Gamma_i}
 \end{align}
-Now, to solve for $\lambda_i$ and $\lambda$, we look again at \eqref{eq:adjoint_hessenberg_constraint1} and restrict again to column $i$:
+\\
+Finally, to solve for $\lambda_i$ and $\lambda$, we look again at \eqref{eq:adjoint_hessenberg_constraint1} and restrict again to column $i$:
 \begin{align}
     \eqref{eq:adjoint_hessenberg_constraint1} \implies & \empty & \!\!0 &\!= \!\nabla_{\!q_i} \rho + A^\top \!\lambda_i - \!\Lambda H^{\!\top}\!e_i + \lambda \delta_{i=1} 
     + Q(I_{\leq} \!\circ \Gamma)e_i + Q(I_{\leq} \!\circ \Gamma)^\top e_i + r \gamma^\top e_i \nonumber
@@ -266,8 +267,10 @@ Now, to solve for $\lambda_i$ and $\lambda$, we look again at \eqref{eq:adjoint_
       h_{i, i\!-\!1} \lambda_{i\!-\!1} & \!\!i > 1
    \end{array}\!\!\bigg\} &\!= \!\nabla_{q_i} \rho + A^\top \lambda_i - \!\sum_{j=i}^{K} h_{ij} \lambda_j + Q(\Gamma + \Gamma^\top)e_i + r \gamma^\top e_i \label{eq:get_lambda_i}
 \end{align}
-We now have all the equations necessary to solve for all adjoint variables. What remains is a solution order such that every equation's right hand side depends only on previously computed variables:
+We now have all equations necessary to solve for all adjoint variables. There is a part that we have not yet addressed: \eqref{eq:get_Gamma_i} depends on accessing column $i$ of the symmetric matrix $\Gamma + \Gamma^\top$. In \eqref{eq:get_Gamma_i}, we however only solve for a masked column $i$ of $\Gamma^\top$. Due to symmetry, this masked column will equal If we solve in reverse order from $K$th to $1$st masked column, we will be able to access the full column $i$ of $\Gamma + \Gamma^\top$. The $i=K$th masked column will effectively not be masked, as $I_\geq e_K = \mathbf{1}e_K$. Due to symmetry, this column will also be the same as 
 \\
+What remains is a solution order such that every equation's right hand side depends only on previously computed variables:
+
 Begin by using \eqref{eq:get_gamma} to get $\gamma$, then follow that up with \eqref{eq:get_last_lambda} to get $\lambda_K$. Now, for $i = K-1$ to $1$, we have the following loop:
 At iteration $i$, we will have computed $\lambda_i$. We then use \eqref{eq:get_Gamma_i} to get a column of the upper-triangular part of $\Gamma^\top$.
 
