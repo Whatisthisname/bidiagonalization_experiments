@@ -186,7 +186,7 @@ The gradients $\nabla_A\rho$ and $\nabla_v\rho$ are then given by\footnote{note 
 
 
 \subsection{Solving the Adjoint System}\label{subsec:solving_adjoint_system}
-The output gradients $\nabla_Q\rho$, $\nabla_H\rho$, $\nabla_r\rho$, $\nabla_c\rho$ will have know quantities, so we need only determine the adjoint variables $\Lambda$, $\Gamma$, $\lambda$, $\gamma$. $\Gamma$ is involved only in equation \eqref{eq:adjoint_hessenberg_constraint1} in which only the lower triangular part is accessed, so for convenience we will define $\Gamma$ to be lower triangular, meaning we can effectively drop the mask $\Gamma := I_{\leq} \circ \Gamma$.
+The output gradients $\nabla_Q\rho$, $\nabla_H\rho$, $\nabla_r\rho$, $\nabla_c\rho$ will have know quantities, so we need only determine the adjoint variables $\Lambda$, $\Gamma$, $\lambda$, $\gamma$. $\Gamma$ is involved only in equation \eqref{eq:adjoint_hessenberg_constraint1} in which only the lower triangular part is accessed, so for notational convenience we will redefine $\Gamma$ to be lower triangular, meaning we can effectively drop the mask $\Gamma := I_{\leq} \circ \Gamma$.
 \\
 We get expressions for $\lambda_K$ and $\gamma$:
 \begin{align}
@@ -339,6 +339,7 @@ Initially, use \eqref{eq:get_gamma} to get $\gamma$, then follow that up with \e
 \\Loop for $i = K$ down to $1$:
 \\
 Use \eqref{eq:get_Gamma_i} to get $\Gamma^\top e_i$ to then get $(\Gamma + \Gamma^\top)e_i$. Use in \eqref{eq:get_lambda_i} to solve for $\lambda_{i-1}$, or, if $i=1$, $\lambda$.
+\\ Finally, we know the adjoint variables and can compute the gradients in \eqref{eq:adjoint_hessenberg_constraint5} and \eqref{eq:adjoint_hessenberg_constraint6}.
 
 \subsection{Derivation of the Stable Adjoint System} \label{subsec:derivation_stable_adjoint_system}
 As described in \ref{sec:bidiag_through_hessenberg}, we can use $\overline{\texttt{Bidiagonalize}}_K$ to (inefficiently) bidiagonalize any matrix $A$ with initial vector $v$. The detour through $\texttt{Hessenberg}$ let's us use the adjoint system of Hessenberg Factorization described in \ref{subsec:adjoint_hessenberg}. In this section we will inspect the adjoint system of $\overline{\texttt{Bidiagonalize}}_K$, and simplify it considerably by exploiting sparsity in $\dddot{A}, \dddot{v}, \dddot{Q}, \dddot{H}$ and $\dddot{r}$.
@@ -370,6 +371,10 @@ We plug this pattern into \eqref{eq:get_last_lambda}, which shows that $\lambda_
     \equiv \begin{pmatrix}0 \\ 0 \\ \vdots \\ 0 \\ * \\ * \\ \vdots \\ *\end{pmatrix} + \begin{pmatrix}0 \\ 0 \\ \vdots \\ 0 \\ * \\ * \\ \vdots \\ *\end{pmatrix}
     \equiv \begin{pmatrix}0 \\ 0 \\ \vdots \\ 0 \\ * \\ * \\ \vdots \\ *\end{pmatrix}
 \end{align}
+We move onto equation \eqref{eq:get_Gamma_i} for columns of $\Gamma^\top$:
+\begin{align}
+    \Gamma_{ii}e_i + \Gamma^\top e_i = - I_\geq e_i \circ \bigg[\dddot{Q}^\top \nabla_{\dddot{q_i}} \rho + \dddot{Q}^\top \dddot{A}^\top \lambda_i\bigg] + \left(\sum_{j=i-1}^{K} h_{ij} I_\geq e_i \circ \nabla_{\dddot{H}} \rho e_i\right) - e_1c\nabla_{c} \rho \delta_{i=1}
+\end{align}
 
 \subsubsection{Step 3: Profit}
 We will now give new names to all nonzero entries in $\Lambda, \Gamma, \lambda, \gamma$, and then show a more compact expression for the stable adjoint system.
@@ -398,7 +403,6 @@ $$\lambda = \begin{bmatrix}
 \end{bmatrix} \qquad \gamma = \begin{bmatrix}
     \gamma_1 & 0 & \gamma_2 & 0 & \cdots & 0 & \gamma_K & 0
 \end{bmatrix}^\top$$
-
 
 \subsection{Columnwise expanded unstable adjoint}
 Define $b_n\lambda_{n+1} := \mathbf{0}$ and $b_0\rho_0:=\mathbf{0}$
