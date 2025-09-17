@@ -141,15 +141,25 @@ Q^\top r &= 0 \label{eq:hessenberg_forward_constraint5}
 
 \subsection{Hessenberg factorization generalizes Bidiagonalization}\label{sec:bidiag_through_hessenberg}
 To compute $\texttt{Bidiagonalize}_K(A, v) = (L, R, B, r, c)$ for any $A \in \mathbb{R}^{N \times M}$ and $v \in \mathbb{R}^M$ using Hessenberg factorization, we construct the symmetric matrix $\dddot{A}$ and augmented vector $\dddot{v}$:
-$$\dddot{A} := \begin{bmatrix}\mathbf{0} & A \\ A^\top & \mathbf{0}\end{bmatrix} \in \mathbb{R}^{(N+M) \times (N+M)} \quad \text{and} \quad \dddot{v} := \begin{pmatrix}\mathbf{0} \\ v \end{pmatrix} \in \mathbb{R}^{N+M}$$
+\begin{align}
+    \dddot{A} := \begin{bmatrix}\mathbf{0} & A \\ A^\top & \mathbf{0}\end{bmatrix} \in \mathbb{R}^{(N+M) \times (N+M)} \label{eq:A_sparsity_pattern}
+\end{align}
+    \begin{align}
+\dddot{v} := \begin{pmatrix}\mathbf{0} \\ v \end{pmatrix} \in \mathbb{R}^{N+M} \label{eq:v_sparsity_pattern}
+\end{align}
 We define the operation $\texttt{augment}: (A, v) \mapsto (\dddot{A}, \dddot{v})$ as the augmentation of a matrix and vector to this symmetric matrix and padded vector.
 Applying Hessenberg factorization for $2K$ iterations to this augmented input yields
 $\texttt{Hessenberg}_{2K}(\dddot{A}, \dddot{v}) = (\dddot{Q}, \dddot{H}, \dddot{r}, c)$
 which are directly related to $(L, R, B, r, c)$ through the following sparse equations:
 
-$$\dddot{Q} = \begin{bmatrix}\mathbf{0} & l_1 & \mathbf{0} & l_2 & \cdots & \mathbf{0} & l_k \\ r_1 & \mathbf{0} & r_2 & \mathbf{0} &  \cdots & r_k & \mathbf{0} \end{bmatrix} \in \mathbb{R}^{(N+M) \times 2K} \qquad \dddot{r} :=\begin{pmatrix}\mathbf{0} \\ r \end{pmatrix} \in \mathbb{R}^{N+M}$$
-
-$$\dddot{H} = \begin{bmatrix}
+\begin{align}
+\dddot{Q} :&= \begin{bmatrix}\mathbf{0} & l_1 & \mathbf{0} & l_2 & \cdots & \mathbf{0} & l_k \\ r_1 & \mathbf{0} & r_2 & \mathbf{0} &  \cdots & r_k & \mathbf{0} \end{bmatrix} \in \mathbb{R}^{(N+M) \times 2K}  \label{eq:Q_sparsity_pattern} 
+\end{align}
+\begin{align}
+\dddot{r} &:=\begin{pmatrix}\mathbf{0} \\ r \end{pmatrix} \in \mathbb{R}^{N+M} \label{eq:r_sparsity_pattern}
+\end{align}
+\begin{align}
+\dddot{H} := \begin{bmatrix}
 0 & \alpha_1 & 0  & 0 & 0 & 0 & 0 & 0\\
 \alpha_1 & 0  & \beta_1 & 0 & 0 & 0 & 0 & 0\\
 0 & \beta_1  & 0 & \alpha_2 & 0 & 0 & 0 & 0\\
@@ -158,7 +168,8 @@ $$\dddot{H} = \begin{bmatrix}
 0 & 0 & 0 & 0   & \ddots & 0 & \beta_{K-1} & 0\\
 0 & 0 & 0 & 0 & 0 & \beta_{K-1}  & 0 & \alpha_K\\
 0 & 0 & 0 & 0 & 0 & 0  & \alpha_K & 0\\
-\end{bmatrix} \in \mathbb{R}^{2K \times 2K}$$
+\end{bmatrix} \in \mathbb{R}^{2K \times 2K} \label{eq:H_sparsity_pattern}
+\end{align}
 The vectors $l_i$ and $r_i$ in $\dddot{Q}$ are exactly the columns of $L$ and $R$, while the bands in $\dddot{H}$ hold the entries of the bidiagonal matrix $B$ with duplicated $\alpha_i$ and $\beta_i$ values. The residual vector $\dddot{r}$ is simply a padded version of $r$, and the inverse norm $c$ is unchanged.
 \\
 We formalize this relationship through a simple linear extraction mapping 
@@ -186,7 +197,7 @@ The gradients $\nabla_A\rho$ and $\nabla_v\rho$ are then given by\footnote{note 
 
 
 \subsection{Solving the Adjoint System}\label{subsec:solving_adjoint_system}
-The output gradients $\nabla_Q\rho$, $\nabla_H\rho$, $\nabla_r\rho$, $\nabla_c\rho$ will have know quantities, so we need only determine the adjoint variables $\Lambda$, $\Gamma$, $\lambda$, $\gamma$.
+The output gradients $\nabla_Q\rho$, $\nabla_H\rho$, $\nabla_r\rho$, $\nabla_c\rho$ will have know quantities, so we need only determine the adjoint variables $\Lambda$, $\Gamma$, $\lambda$, $\gamma$. $\Gamma$ is involved only in equation \eqref{eq:adjoint_hessenberg_constraint1} in which only the lower triangular part is accessed, so for notational convenience we will redefine $\Gamma$ to be lower triangular, meaning we can effectively drop the mask $\Gamma := I_{\leq} \circ \Gamma$.
 \\
 We get expressions for $\lambda_K$ and $\gamma$:
 \begin{align}
@@ -216,29 +227,27 @@ Next, we will get expressions for the remaining columns of $\Lambda$ and $\Gamma
 \begin{align}
     \eqref{eq:adjoint_hessenberg_constraint4} \iff c\nabla_{c} \rho = q_1^\top \lambda\label{eq:get_q1_top_lambda}
 \end{align}
-We now turn to adjoint system constraint \eqref{eq:adjoint_hessenberg_constraint1}, left-multiply $Q^\top$ and then mask away the strict lower triangular part of $\Gamma$:
+We now turn to adjoint system constraint \eqref{eq:adjoint_hessenberg_constraint1}, left-multiply $Q^\top$ and then apply a mask to consider only the upper triangular part of the equations:
 \begin{align*}
-    \eqref{eq:adjoint_hessenberg_constraint1} &\overset{\eqref{eq:hessenberg_forward_constraint3}, \eqref{eq:hessenberg_forward_constraint5}}{\implies} \empty & \mathbf{0} &= Q^\top \nabla_{Q} \rho + Q^\top A^\top \Lambda - Q^\top \Lambda H^\top + Q^\top \lambda (e_{1})^\top + (I_{\leq} \circ \Gamma) + (I_{\leq} \circ \Gamma)^\top
+    \eqref{eq:adjoint_hessenberg_constraint1} &\overset{\eqref{eq:hessenberg_forward_constraint3}, \eqref{eq:hessenberg_forward_constraint5}}{\implies} \empty & \mathbf{0} &= Q^\top \nabla_{Q} \rho + Q^\top A^\top \Lambda - Q^\top \Lambda H^\top + Q^\top \lambda (e_{1})^\top + \Gamma + \Gamma^\top
     \\
-    \empty &\;\implies\; \empty & \mathbf{0} &= I_\geq \circ \bigg[Q^\top \nabla_{Q} \rho + Q^\top A^\top \Lambda - Q^\top \Lambda H^\top + Q^\top \lambda (e_{1})^\top + (I_{\leq} \circ \Gamma) + I_{\geq} \circ \Gamma^\top\bigg]
+    \empty &\;\implies\; \empty & \mathbf{0} &= I_\geq \circ \bigg[Q^\top \nabla_{Q} \rho + Q^\top A^\top \Lambda - Q^\top \Lambda H^\top + Q^\top \lambda (e_{1})^\top + \Gamma + \Gamma^\top\bigg]
     \\
-    \empty & \empty & &= I_\geq \circ \bigg[Q^\top \nabla_{Q} \rho + Q^\top A^\top \Lambda - Q^\top \Lambda H^\top + Q^\top \lambda (e_{1})^\top\bigg] + \text{diag}(\Gamma) +  I_{\geq} \circ \Gamma^\top
-     \\
-    \empty & \empty & &= I_\geq \circ \bigg[Q^\top \nabla_{Q} \rho + Q^\top A^\top \Lambda - Q^\top \Lambda H^\top + Q^\top \lambda (e_{1})^\top\bigg] + (I + I_{\geq}) \circ \Gamma^\top
+    \empty & \empty & &= I_\geq \circ \bigg[Q^\top \nabla_{Q} \rho + Q^\top A^\top \Lambda - Q^\top \Lambda H^\top + Q^\top \lambda (e_{1})^\top\bigg] + \text{diag}(\Gamma) + \Gamma^\top
 \end{align*}
 We now inspect column $i$ in this matrix equation. We will use sparsity of $H$ to rewrite the matrix product $Q^\top \Lambda H^\top$, and we will apply some simplifications with the mask $I_\geq$:
 \begin{align}
-    \mathbf{0} &= \left(I_\geq \circ \bigg[Q^\top \nabla_{Q} \rho + Q^\top A^\top \Lambda - Q^\top \Lambda H^\top + Q^\top \lambda (e_{1})^\top\bigg]\right)e_i + \left((I + I_{\geq}) \circ \Gamma^\top\right) e_i \nonumber
+    \mathbf{0} &= \left(I_\geq \circ \bigg[Q^\top \nabla_{Q} \rho + Q^\top A^\top \Lambda - Q^\top \Lambda H^\top + Q^\top \lambda (e_{1})^\top\bigg]\right)e_i + \left(\text{diag}(\Gamma) + \Gamma^\top\right) e_i \nonumber
     \\
-    &= I_\geq e_i \circ \bigg[Q^\top \nabla_{q_i} \rho + Q^\top A^\top \lambda_i - Q^\top \Lambda H^\top e_i + Q^\top \lambda (e_{1})^\top e_i\bigg] + (e_i + I_{\geq}e_i) \circ \Gamma^\top e_i \nonumber
+    &= I_\geq e_i \circ \bigg[Q^\top \nabla_{q_i} \rho + Q^\top A^\top \lambda_i - Q^\top \Lambda H^\top e_i + Q^\top \lambda (e_{1})^\top e_i\bigg] + \text{diag}(\Gamma)e_i + \Gamma^\top e_i \nonumber
     \\
-    &= I_\geq e_i \circ \bigg[Q^\top \nabla_{q_i} \rho + Q^\top A^\top \lambda_i - Q^\top \left(\sum_{j=i-1}^{K} \lambda_j h_{ij}\right)\bigg] +(I_\geq e_i) \circ Q^\top \lambda \delta_{i=1} + (e_i + I_{\geq}e_i) \circ \Gamma^\top e_i \nonumber
+    &= I_\geq e_i \circ \bigg[Q^\top \nabla_{q_i} \rho + Q^\top A^\top \lambda_i - Q^\top \left(\sum_{j=i-1}^{K} \lambda_j h_{ij}\right)\bigg] +(I_\geq e_i) \circ Q^\top \lambda \delta_{i=1} + \Gamma_{ii}e_i + \Gamma^\top e_i \nonumber
     \\
-    &= I_\geq e_i \circ \bigg[Q^\top \nabla_{q_i} \rho + Q^\top A^\top \lambda_i - \sum_{j=i-1}^{K} h_{ij}Q^\top\lambda_j\bigg] + e_1q_1^\top \lambda \delta_{i=1} + (e_i + I_{\geq}e_i) \circ \Gamma^\top e_i \nonumber
+    &= I_\geq e_i \circ \bigg[Q^\top \nabla_{q_i} \rho + Q^\top A^\top \lambda_i - \sum_{j=i-1}^{K} h_{ij}Q^\top\lambda_j\bigg] + e_1q_1^\top \lambda \delta_{i=1} + \Gamma_{ii}e_i + \Gamma^\top e_i \nonumber
     \\
-    &\!\overset{\eqref{eq:get_q1_top_lambda}}{=} I_\geq e_i \circ \bigg[Q^\top \nabla_{q_i} \rho + Q^\top A^\top \lambda_i\bigg] - I_\geq e_i \circ \left(\sum_{j=i-1}^{K} h_{ij}Q^\top\lambda_j\right) + e_1c\nabla_{c} \rho \delta_{i=1} + (e_i + I_{\geq}e_i) \circ \Gamma^\top e_i \nonumber
+    &\!\overset{\eqref{eq:get_q1_top_lambda}}{=} I_\geq e_i \circ \bigg[Q^\top \nabla_{q_i} \rho + Q^\top A^\top \lambda_i\bigg] - I_\geq e_i \circ \left(\sum_{j=i-1}^{K} h_{ij}Q^\top\lambda_j\right) + e_1c\nabla_{c} \rho \delta_{i=1} + \Gamma_{ii}e_i + \Gamma^\top e_i \nonumber
     \\
-    &= I_\geq e_i \circ \bigg[Q^\top \nabla_{q_i} \rho + Q^\top A^\top \lambda_i\bigg] - \left(\sum_{j=i-1}^{K} h_{ij} I_\geq e_i \circ Q^\top\lambda_j\right) + e_1c\nabla_{c} \rho \delta_{i=1} + (e_i + I_{\geq}e_i) \circ \Gamma^\top e_i \label{eq:term_round_parentheses}
+    &= I_\geq e_i \circ \bigg[Q^\top \nabla_{q_i} \rho + Q^\top A^\top \lambda_i\bigg] - \left(\sum_{j=i-1}^{K} h_{ij} I_\geq e_i \circ Q^\top\lambda_j\right) + e_1c\nabla_{c} \rho \delta_{i=1} + \Gamma_{ii}e_i + \Gamma^\top e_i \label{eq:term_round_parentheses}
 \end{align}
 We can use \eqref{eq:get_lambda_in_Q_coords} to rewrite the term in round parentheses:
 \begin{align}
@@ -250,14 +259,15 @@ We can use \eqref{eq:get_lambda_in_Q_coords} to rewrite the term in round parent
     \\
     &\;\implies &  I_{\geq}e_i \circ Q^\top \lambda_i &= I_{\geq}e_i \circ \nabla_{H} \rho e_i \nonumber &
 \end{align}
-We plug this into \eqref{eq:term_round_parentheses}, which yields an expression we can use to solve for masked column $i$ of $\Gamma^\top$, requiring knowledge only of the value of $\lambda_i$:
+We plug this into \eqref{eq:term_round_parentheses}, which then yields an expression we can use to solve for a column $i$ of $\Gamma^\top$, requiring knowledge only of the value of $\lambda_i$:
 \begin{align}
-    (e_i + I_{\geq}e_i) \circ \Gamma^\top e_i = - I_\geq e_i \circ \bigg[Q^\top \nabla_{q_i} \rho + Q^\top A^\top \lambda_i\bigg] + \left(\sum_{j=i-1}^{K} h_{ij} I_\geq e_i \circ Q^\top\lambda_j\right) - e_1c\nabla_{c} \rho \delta_{i=1} \label{eq:get_Gamma_i}
+    \Gamma_{ii}e_i + \Gamma^\top e_i = - I_\geq e_i \circ \bigg[Q^\top \nabla_{q_i} \rho + Q^\top A^\top \lambda_i\bigg] + \left(\sum_{j=i-1}^{K} h_{ij} I_\geq e_i \circ \nabla_{H} \rho e_j\right) - e_1c\nabla_{c} \rho \delta_{i=1} \label{eq:get_Gamma_i}
 \end{align}
-Now, to solve for $\lambda_i$ and $\lambda$, we look again at \eqref{eq:adjoint_hessenberg_constraint1} and restrict again to column $i$:
+\\
+Finally, to solve for $\lambda_i$ and $\lambda$, we look again at \eqref{eq:adjoint_hessenberg_constraint1} and restrict to column $i$:
 \begin{align}
     \eqref{eq:adjoint_hessenberg_constraint1} \implies & \empty & \!\!0 &\!= \!\nabla_{\!q_i} \rho + A^\top \!\lambda_i - \!\Lambda H^{\!\top}\!e_i + \lambda \delta_{i=1} 
-    + Q(I_{\leq} \!\circ \Gamma)e_i + Q(I_{\leq} \!\circ \Gamma)^\top e_i + r \gamma^\top e_i \nonumber
+    + Q\Gamma e_i + Q\Gamma^\top e_i + r \gamma^\top e_i \nonumber
     \\
     &\empty &\empty &\!= \!\nabla_{q_i} \rho + A^\top \lambda_i - \!\sum_{j=i-1}^{K} h_{ij} \lambda_j + \lambda \delta_{i=1} + Q(\Gamma + \Gamma^\top)e_i + r \gamma^\top e_i \nonumber
     \\
@@ -266,17 +276,94 @@ Now, to solve for $\lambda_i$ and $\lambda$, we look again at \eqref{eq:adjoint_
       h_{i, i\!-\!1} \lambda_{i\!-\!1} & \!\!i > 1
    \end{array}\!\!\bigg\} &\!= \!\nabla_{q_i} \rho + A^\top \lambda_i - \!\sum_{j=i}^{K} h_{ij} \lambda_j + Q(\Gamma + \Gamma^\top)e_i + r \gamma^\top e_i \label{eq:get_lambda_i}
 \end{align}
-We now have all the equations necessary to solve for all adjoint variables. What remains is a solution order such that every equation's right hand side depends only on previously computed variables:
+We now have all equations necessary to solve for all adjoint variables. There is a part that we have not yet addressed: In \eqref{eq:get_lambda_i}, we will need access to $(\Gamma + \Gamma^\top)e_i$, however \eqref{eq:get_Gamma_i} will only give us $\Gamma^\top e_i$. How we do this is best explained with an example.
+\newtheorem{example}{Example}
+\begin{example}[Construction of $\Gamma + \Gamma^\top$]\label{ex:construction_Gamma_Gamma_top}
+Let $K=4$. For decreasing $i$ starting from $K$ down to $1$, the known entries in upper triangular $\Gamma^\top \in \mathbb{R}^{4 \times 4}$ will evolve as follows, where $?$ denotes unknown entries and $*$ denotes known entries:
+\begin{align*}
+    \;\;\;\;\;\;\Gamma^\top:
+\begin{array}{c} i = 4 \\
+    \begin{bmatrix}
+    ? & ? & ? & * \\
+    0 & ? & ? & * \\
+    0 & 0 & ? & * \\
+    0 & 0 & 0 & * \\
+\end{bmatrix} \end{array} \qquad
+\begin{array}{c} i = 3  \\
+\begin{bmatrix}
+    ? & ? & * & * \\
+    0 & ? & * & * \\
+    0 & 0 & * & * \\
+    0 & 0 & 0 & * \\
+\end{bmatrix} \end{array} \qquad
+\begin{array}{c} i = 2 \\
+\begin{bmatrix}
+    ? & * & * & * \\
+    0 & * & * & * \\
+    0 & 0 & * & * \\
+    0 & 0 & 0 & * \\
+\end{bmatrix} \end{array} \qquad
+\begin{array}{c} i = 1 \\
+\begin{bmatrix}
+    * & * & * & * \\
+    0 & * & * & * \\
+    0 & 0 & * & * \\
+    0 & 0 & 0 & * \\
+\end{bmatrix} \end{array} \qquad
+\end{align*}
+This is enough information to then also determine the $i$th column of symmetric $\Gamma + \Gamma^\top$, whose entries we will uncover in the following sequence:
+\begin{align*}
+    \Gamma + \Gamma^\top:
+\begin{array}{c} i = 4 \\
+    \begin{bmatrix}
+    ? & ? & ? & * \\
+    ? & ? & ? & * \\
+    ? & ? & ? & * \\
+    * & * & * & * \\
+\end{bmatrix} \end{array} \qquad
+\begin{array}{c} i = 3  \\
+\begin{bmatrix}
+    ? & ? & * & * \\
+    ? & ? & * & * \\
+    * & * & * & * \\
+    * & * & * & * \\
+\end{bmatrix} \end{array} \qquad
+\begin{array}{c} i = 2 \\
+\begin{bmatrix}
+    ? & * & * & * \\
+    * & * & * & * \\
+    * & * & * & * \\
+    * & * & * & * \\
+\end{bmatrix} \end{array} \qquad
+\begin{array}{c} i = 1 \\
+\begin{bmatrix}
+    * & * & * & * \\
+    * & * & * & * \\
+    * & * & * & * \\
+    * & * & * & * \\
+\end{bmatrix} \end{array} \qquad
+\end{align*}
+\end{example}
+We now give the order in which to apply all the equations: 
 \\
-Begin by using \eqref{eq:get_gamma} to get $\gamma$, then follow that up with \eqref{eq:get_last_lambda} to get $\lambda_K$. Now, for $i = K-1$ to $1$, we have the following loop:
-At iteration $i$, we will have computed $\lambda_i$. We then use \eqref{eq:get_Gamma_i} to get a column of the upper-triangular part of $\Gamma^\top$.
+Initially, use \eqref{eq:get_gamma} to get $\gamma$, then follow that up with \eqref{eq:get_last_lambda} to get $\lambda_K$. 
+\\Loop for $i = K$ down to $1$:
+\\
+Use \eqref{eq:get_Gamma_i} to get $\Gamma^\top e_i$ to then get $(\Gamma + \Gamma^\top)e_i$. Use in \eqref{eq:get_lambda_i} to solve for $\lambda_{i-1}$, or, if $i=1$, $\lambda$.
+\\ Finally, we know the adjoint variables and can compute the gradients in \eqref{eq:adjoint_hessenberg_constraint5} and \eqref{eq:adjoint_hessenberg_constraint6}.
 
 \subsection{Derivation of the Stable Adjoint System} \label{subsec:derivation_stable_adjoint_system}
 As described in \ref{sec:bidiag_through_hessenberg}, we can use $\overline{\texttt{Bidiagonalize}}_K$ to (inefficiently) bidiagonalize any matrix $A$ with initial vector $v$. The detour through $\texttt{Hessenberg}$ let's us use the adjoint system of Hessenberg Factorization described in \ref{subsec:adjoint_hessenberg}. In this section we will inspect the adjoint system of $\overline{\texttt{Bidiagonalize}}_K$, and simplify it considerably by exploiting sparsity in $\dddot{A}, \dddot{v}, \dddot{Q}, \dddot{H}$ and $\dddot{r}$.
 \\
 The sparsity patterns of $\nabla_{\dddot{Q}} \rho$, $\nabla_{\dddot{H}} \rho$, and $\nabla_{\dddot{r}} \rho$ match those of $\dddot{Q}, \dddot{H}, \dddot{r}$, due to the linear nature of \texttt{extract}:
-$$\nabla_{\dddot{Q}} \rho = \begin{bmatrix}\mathbf{0} & \nabla_{l_1}\rho & \mathbf{0} & \nabla_{l_2}\rho & \cdots & \mathbf{0} & \nabla_{l_k}\rho \\ \nabla_{r_1}\rho & \mathbf{0} & \nabla_{r_2}\rho & \mathbf{0} &  \cdots & \nabla_{r_k}\rho & \mathbf{0} \end{bmatrix} \in \mathbb{R}^{(N+M) \times K} \qquad \nabla_{\dddot{r}} \rho = \begin{pmatrix}\mathbf{0} \\ \nabla_{r} \rho \end{pmatrix} \in \mathbb{R}^{N+M}$$
-$$\nabla_{\dddot{H}} \rho = \begin{bmatrix}
+\begin{align}
+    \nabla_{\dddot{Q}} \rho := \begin{bmatrix}\mathbf{0} & \nabla_{l_1}\rho & \mathbf{0} & \nabla_{l_2}\rho & \cdots & \mathbf{0} & \nabla_{l_k}\rho \\ \nabla_{r_1}\rho & \mathbf{0} & \nabla_{r_2}\rho & \mathbf{0} &  \cdots & \nabla_{r_k}\rho & \mathbf{0} \end{bmatrix} \in \mathbb{R}^{(N+M) \times K} \label{eq:nabla_Q_sparsity_pattern}
+\end{align}
+\begin{align}
+    \nabla_{\dddot{r}} \rho := \begin{pmatrix}\mathbf{0} \\ \nabla_{r} \rho \end{pmatrix} \in \mathbb{R}^{N+M} \label{eq:nabla_r_sparsity_pattern}
+\end{align}
+\begin{align}
+    \nabla_{\dddot{H}} \rho := \begin{bmatrix} 
     0 & \nabla_{\alpha_1}\rho & 0  & 0 & 0 & 0 & 0 & 0\\
     0 & 0  & \nabla_{\beta_1}\rho & 0 & 0 & 0 & 0 & 0\\
     0 & 0  & 0 & \nabla_{\alpha_2}\rho & 0 & 0 & 0 & 0\\
@@ -285,27 +372,87 @@ $$\nabla_{\dddot{H}} \rho = \begin{bmatrix}
     0 & 0 & 0 & 0 & 0 & 0 & \nabla_{\beta_{K-1}}\rho & 0\\
     0 & 0 & 0 & 0 & 0 & 0  & 0 & \nabla_{\alpha_K}\rho\\
     0 & 0 & 0 & 0 & 0 & 0  & 0 & 0\\
-    \end{bmatrix} \in \mathbb{R}^{2K \times 2K}$$
+    \end{bmatrix} \in \mathbb{R}^{2K \times 2K} \label{eq:nabla_H_sparsity_pattern}
+\end{align}
 We will look at the constraints \eqref{eq:adjoint_hessenberg_constraint1} through \eqref{eq:adjoint_hessenberg_constraint4} and determine further sparsity patterns in the adjoint variables $\Lambda, \Gamma, \lambda, \gamma$. We will mark possibly nonzero entries with $*$, and constant zero entries with a $0$.
 \\
+\subsubsection{Inspecting $\gamma$ and $\lambda_{2K}$}
 Starting from \eqref{eq:get_gamma}, replacing $K$ with $2K$, we plug in our sparse gradients and outputs, and show that, for this input, $\gamma \in \mathbb{R}^{2K}$ is alternatingly non-zero and zero.
 \begin{align}
     \eqref{eq:get_gamma} \implies \gamma &= \nabla_{\dddot{H}} \rho e_{2K} - \dddot{Q}^\top \nabla_{\dddot{r}} \rho = \nabla_{\alpha_{K}} \rho e_{2K-1} - \dddot{Q}^\top \begin{pmatrix}\mathbf{0} \\ \nabla_r\rho\end{pmatrix} 
     \\
     &= \begin{pmatrix}0 \\ 0 \\ 0 \\ 0 \\ \vdots \\ 0 \\ \nabla_{\alpha_K} \rho \\ 0\end{pmatrix}  - \begin{pmatrix}r_1^\top \\ \mathbf{0}^\top \\ r_2^\top \\ \mathbf{0}^\top \\ \vdots \\\mathbf{0}^\top\\ r_K^\top \\ \mathbf{0}^\top\end{pmatrix} \nabla_{r} \rho \equiv \begin{pmatrix}* \\ 0 \\ * \\ 0 \\ \vdots \\ 0 \\ * \\ 0\end{pmatrix}
 \end{align}
-We plug this pattern into \eqref{eq:get_last_lambda}, which shows that $\lambda_2K$ has the same sparsity pattern as $\dddot{v}$:
+We plug this pattern into \eqref{eq:get_last_lambda}, which shows that $\lambda_{2K}$ has the same sparsity pattern as $\dddot{v}$:
 \begin{align}
-    \eqref{eq:get_last_lambda} \implies \lambda_2K &= \nabla_{\dddot{r}} \rho + \dddot{Q} \gamma
+    \eqref{eq:get_last_lambda} \implies \lambda_{2K} &= \nabla_{\dddot{r}} \rho + \dddot{Q} \gamma
     \equiv \begin{pmatrix}\mathbf{0} \\ \nabla_r\rho\end{pmatrix}  + \dddot{Q} \begin{pmatrix}* \\ 0 \\ * \\ 0 \\ \vdots \\ 0\\ * \\ 0\end{pmatrix}
     \equiv \begin{pmatrix}0 \\ 0 \\ \vdots \\ 0 \\ * \\ * \\ \vdots \\ *\end{pmatrix} + \begin{pmatrix}0 \\ 0 \\ \vdots \\ 0 \\ * \\ * \\ \vdots \\ *\end{pmatrix}
-    \equiv \begin{pmatrix}0 \\ 0 \\ \vdots \\ 0 \\ * \\ * \\ \vdots \\ *\end{pmatrix}
+    \equiv \begin{pmatrix}0 \\ 0 \\ \vdots \\ 0 \\ * \\ * \\ \vdots \\ *\end{pmatrix} \label{eq:lambda_2K_sparsity_pattern}
+\end{align}
+\subsubsection{Inspecting $\Gamma^\top$ and $\Lambda$}
+We move onto equation \eqref{eq:get_Gamma_i} for columns of $\Gamma^\top$:
+\begin{align}
+    \Gamma_{ii}e_i + \Gamma^\top e_i = - I_\geq e_i \circ \bigg[\dddot{Q}^\top \nabla_{\dddot{q_i}} \rho + \dddot{Q}^\top \dddot{A}^\top \lambda_i\bigg] + \left(\sum_{j=i-1}^{K} h_{ij} I_\geq e_i \circ \nabla_{\dddot{H}} \rho e_j\right) - e_1c\nabla_{c} \rho \delta_{i=1}
+\end{align}
+By expanding the sparsity patterns of known variables $\dddot{Q}$, $\dddot{A}$, $\nabla_{\dddot{q_i}} \rho$, and $\nabla_{\dddot{H}} \rho$, this will simplify. Expanding one term at a time starting with $\dddot{Q}^\top \nabla_{\dddot{q_{i}}} \rho$ using \eqref{eq:Q_sparsity_pattern} and \eqref{eq:nabla_Q_sparsity_pattern}, we get, for even $i$:
+\begin{align}
+    \dddot{Q}^\top \nabla_{\dddot{q_{i}}} \rho = 
+    \begin{bmatrix}\mathbf{0} & l_1 & \mathbf{0} & l_2 & \cdots & \mathbf{0} & l_k \\ r_1 & \mathbf{0} & r_2 & \mathbf{0} &  \cdots & r_k & \mathbf{0} \end{bmatrix} ^\top \begin{bmatrix} \nabla_{l_i} \rho \\ \mathbf{0} \end{bmatrix} = 
+    \begin{bmatrix} l_1^\top \nabla_{l_i} \rho & 0 & l_2^\top \nabla_{l_i} \rho & 0 & \cdots & l_k^\top \nabla_{l_i} \rho & 0\end{bmatrix} ^\top
+\end{align}
+For odd $i$, we get 
+\begin{align}
+    \dddot{Q}^\top \nabla_{\dddot{q_{i}}} \rho = 
+    \begin{bmatrix}\mathbf{0} & l_1 & \mathbf{0} & l_2 & \cdots & \mathbf{0} & l_k \\ r_1 & \mathbf{0} & r_2 & \mathbf{0} &  \cdots & r_k & \mathbf{0} \end{bmatrix} ^\top \begin{bmatrix} \mathbf{0} \\ \nabla_{r_i} \rho \end{bmatrix} =
+    \begin{bmatrix} 0 & r_1^\top \nabla_{r_i} \rho & 0 & r_2^\top \nabla_{r_i} \rho  & \cdots & 0 & r_k^\top \nabla_{r_i} \rho \end{bmatrix} ^\top
+\end{align}
+Next term is $\dddot{Q}^\top \dddot{A}^\top \lambda_i$ using again \eqref{eq:Q_sparsity_pattern} and \eqref{eq:A_sparsity_pattern}. Assume that $\Lambda$ has the opposite sparsity pattern as $\dddot{Q}$. This lets us name the nonzero entries: 
+\begin{align}
+    \Lambda = \begin{bmatrix}\varphi_1 & \mathbf{0} & \varphi_2 & \mathbf{0} & \cdots &\varphi_k & \mathbf{0}\\ \mathbf{0} & \xi_1 & \mathbf{0} & \xi_2 &  \cdots  & \mathbf{0} & \xi_k \end{bmatrix} \in \mathbb{R}^{(N+M) \times 2K} \label{eq:Lambda_sparsity_pattern}
+\end{align}
+The proof of \eqref{eq:Lambda_sparsity_pattern} will follow from induction backwards from $i=2K$ to $i=1$, with the base case already shown in \eqref{eq:lambda_2K_sparsity_pattern}. First, for even $i$, we get:
+\begin{align}
+    \dddot{Q}^\top \dddot{A}^\top \lambda_i = 
+    \begin{bmatrix}\mathbf{0} & l_1 & \mathbf{0} & l_2 & \cdots & \mathbf{0} & l_k \\ r_1 & \mathbf{0} & r_2 & \mathbf{0} &  \cdots & r_k & \mathbf{0} \end{bmatrix} ^\top \begin{bmatrix} \mathbf{0} & A \\ A^\top & \mathbf{0} \end{bmatrix} \begin{bmatrix} \mathbf{0} \\ \xi_i \end{bmatrix} = 
+    \begin{bmatrix} 0 & l_1^\top A\xi_i & 0 & l_2^\top A\xi_i  & \cdots & 0 & l_k^\top A\xi_i \end{bmatrix} ^\top
+\end{align}
+For odd $i$, we get:
+\begin{align}
+    \dddot{Q}^\top \dddot{A}^\top \lambda_i = 
+    \begin{bmatrix}\mathbf{0} & l_1 & \mathbf{0} & l_2 & \cdots & \mathbf{0} & l_k \\ r_1 & \mathbf{0} & r_2 & \mathbf{0} &  \cdots & r_k & \mathbf{0} \end{bmatrix} ^\top \begin{bmatrix} \mathbf{0} & A \\ A^\top & \mathbf{0} \end{bmatrix} \begin{bmatrix} \varphi_i \\ \mathbf{0} \end{bmatrix} = 
+    \begin{bmatrix} r_1^\top A\varphi_i & 0 & r_2^\top A\varphi_i  & 0 & \cdots & r_k^\top A\varphi_i & 0 \end{bmatrix} ^\top
+\end{align}
+Next term to dissect is $\sum_{j=i-1}^{K} h_{ij} I_\geq e_i \circ \nabla_{\dddot{H}} \rho e_j$. Here, we use the sparsity pattern of $\nabla_{\dddot{H}} \rho$ from \eqref{eq:nabla_H_sparsity_pattern}:
+\begin{align}
+    \text{for even $i$: }& &\nabla_{\dddot{H}} \rho e_i &= \nabla_{\alpha_{i/2}} \rho e_{i-1}
+    \\
+\text{for odd $i$: } & & \nabla_{\dddot{H}} \rho e_i &= \nabla_{\beta_{(i-1)/2}} \rho e_{i-1}
+\end{align}
+For this reason, all terms $I_\geq e_i \circ \nabla_{\dddot{H}} \rho e_j$ for $j \notin \{i-1, i, i+2\}$ are zero. Additionally, we know from \eqref{eq:H_sparsity_pattern} that $h_{ii} = 0$ for all $i$.
+Assuming now $i$ even, we get:
+\begin{align}
+    \sum_{j=i-1}^{K} h_{ij} I_\geq e_i \circ \nabla_{\dddot{H}} \rho e_j  
+    &= 
+    \sum_{j=i-1}^{i+1} h_{ij} I_\geq e_i \circ \nabla_{\dddot{H}} \rho e_j 
+    \\ &= h_{i,i-1} \nabla_{\dddot{H}} \rho e_{i-1} + h_{i,i} \nabla_{\dddot{H}} \rho e_i + h_{i,i+1} \nabla_{\dddot{H}} \rho e_{i+1}
+    \\ &= h_{i,i-1} \nabla_{\dddot{H}} \rho e_{i-1} + h_{i,i+1} \nabla_{\dddot{H}} \rho e_{i+1}
+    \\ &= \alpha_{i/2} \nabla_{\dddot{H}} \rho e_{i-1} + \beta_{i/2} \nabla_{\dddot{H}} \rho e_{i+1}
+    \\ &= \alpha_{i/2} \nabla_{\beta_{i/2 - 1}}\rho e_{i-2} + \beta_{i/2} \nabla_{\beta_{i/2}}\rho e_{i}
+\end{align}
+For odd $i$, with a similar argument we'd get:
+\begin{align}
+    \sum_{j=i-1}^{K} h_{ij} I_\geq e_i \circ \nabla_{\dddot{H}} \rho e_j  
+    &= h_{i,i-1} \nabla_{\dddot{H}} \rho e_{i-1} + h_{i,i+1} \nabla_{\dddot{H}} \rho e_{i+1}
+    \\ &= \beta_{(i-1)/2} \nabla_{\dddot{H}} \rho e_{i-1} + \alpha_{(i+1)/2} \nabla_{\dddot{H}} \rho e_{i+1}
+    \\ &= \beta_{(i-1)/2} \nabla_{\alpha_{(i-1)/2 - 1}}\rho e_{i-2} + \alpha_{(i+1)/2} \nabla_{\alpha_{(i+1)/2}}\rho e_{i}
 \end{align}
 
-\subsubsection{Step 3: Profit}
+Bringing it all together back into \eqref{eq:get_Gamma_i}, for even $i$, we get:
+TODO
+
+\subsubsection{Step 3: Summary? (TODO), or is it unnecessary?}
 We will now give new names to all nonzero entries in $\Lambda, \Gamma, \lambda, \gamma$, and then show a more compact expression for the stable adjoint system.
-We can now refer to the columns of sparse $\Lambda$ as
-$$\Lambda = \begin{bmatrix}\varphi_1 & \mathbf{0} & \varphi_2 & \mathbf{0} & \cdots &\varphi_k & \mathbf{0}\\ \mathbf{0} & \xi_1 & \mathbf{0} & \xi_2 &  \cdots  & \mathbf{0} & \xi_k \end{bmatrix} \in \mathbb{R}^{(N+M) \times 2K}$$
 As shown, $\Gamma$ has a checkered pattern, which, here shown for $K=6$ we name as: 
 $$\Gamma = \begin{bmatrix} 
     \omega_{11} & 0 & 0 & 0 & 0 & 0 \\
@@ -329,7 +476,6 @@ $$\lambda = \begin{bmatrix}
 \end{bmatrix} \qquad \gamma = \begin{bmatrix}
     \gamma_1 & 0 & \gamma_2 & 0 & \cdots & 0 & \gamma_K & 0
 \end{bmatrix}^\top$$
-
 
 \subsection{Columnwise expanded unstable adjoint}
 Define $b_n\lambda_{n+1} := \mathbf{0}$ and $b_0\rho_0:=\mathbf{0}$
@@ -417,7 +563,6 @@ The adjoint method provides an elegant way to compute parameter gradients of los
 \\
 \\
 Let $s : \theta \mapsto x$ be a numerical solver that yields a solution $x$ to some problem $\theta$, with $\text{dim}(\theta) = P$ and $\text{dim}(x) = X$. Assume also that we know an associated constraint function $c : x \mapsto \mathbb{R}^X$ that evaluates all the constraints of the problem, for which $c(s(\theta), \theta) = \mathbf{0}$ for all $\theta$. Additionally, require that $\frac{\partial c}{\partial \theta}$ is everywhere nonsingular. Assume also that we have a loss function $\ell : x \mapsto \mathbb{R}$ that depends on the solution $x$ of the problem. We are interested in $\nabla_\theta \ell(s(\theta))$, the gradient of $\ell$ with respect to the parameters $\theta$.
-\newtheorem{example}{Example}
 \begin{example}[Hessenberg Factorization]
     A fitting example would be $s = $ \texttt{Hessenberg}, which implies that $\theta = (A, v)$ and $x = (Q, H, r, c)$. The associated constraint function would be the concatenation of constraints \eqref{eq:hessenberg_forward_constraint1} through \eqref{eq:hessenberg_forward_constraint5}. We see that, for this example, $c(x, \theta) = \mathbf{0}$ for all solutions $(Q, H, r, c)$ if and only if they correctly Hessenberg-factorize from $\theta$ = $(A, v)$.
 \end{example}
