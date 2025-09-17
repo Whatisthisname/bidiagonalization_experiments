@@ -14,13 +14,13 @@ jax.config.update("jax_enable_x64", True)
 sys.path.append(os.path.dirname(os.path.dirname(__file__)))
 
 
-n = 10
-m = 10
+n = 4
+m = 4
 
-num_matvecs = 8
+num_matvecs = 4
 
 A = jax.random.normal(key=jax.random.PRNGKey(0), shape=(n, m))
-A = hilbert_matrix(n)
+# A = hilbert_matrix(n)
 
 
 def matvec(v, *params):
@@ -43,7 +43,7 @@ def extract_hess_results(result: decomp._DecompResult) -> tuple:
     rlrlrl = result.Q_tall
     ls = rlrlrl[:n, 1::2]
     rs = rlrlrl[n:, 0::2]
-    ababab = jnp.diag(result.J_small, k=-1)
+    ababab = jnp.diag(result.J_small, k=1)
     alphas = ababab[::2]
     betas = ababab[1::2]
     res = result.residual[n:]
@@ -124,9 +124,9 @@ def compare_two_outputs(*args):
     )
 
 
-compare_two_outputs(
-    *extract_bidiag_results(bd_new_result), *extract_hess_results(hess_result)
-)
+# compare_two_outputs(
+#     *extract_bidiag_results(bd_new_result), *extract_hess_results(hess_result)
+# )
 
 
 print(jnp.linalg.norm(reduced_hess_loss - hess_loss))

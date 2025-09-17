@@ -258,6 +258,8 @@ def _hessenberg_adjoint(
     Pi_xi = dQ.T + jnp.linalg.outer(eta, r)
     Pi_gamma = -d_c * c * jnp.linalg.outer(e_1, e_1) + H @ dH.T - (dQ.T @ Q)
 
+    jax.debug.print("Q term: {}", Q.T @ dQ)
+
     # jax.debug.print("H @ (dH + dH.T)\n{}", H @ (dH + dH.T))
     # jax.debug.print("H @ dH.T\n{}", H @ dH.T)
 
@@ -411,17 +413,16 @@ def _hessenberg_adjoint_step(
         # Get rid of the (I_ll o Sigma) term by multiplying with a mask
         Q_masked = reortho_mask_k[None, :] * Q
         rhs_masked = reortho_mask_k * dH_k
-        # jax.debug.print("rhs, masked\n{}", rhs_masked)
 
         # Project x to Q^T x = y via
         # x = x - Q Q^\top x + Q Q^\top x = x - Q Q^\top x + Q y
         # (here, x = lambda_k and y = dH_k)
         lambda_k = lambda_k - Q_masked @ (Q_masked.T @ lambda_k) + Q_masked @ rhs_masked
-        # jax.debug.print(" Q_masked @ rhs_masked: \n{}", Q_masked @ rhs_masked)
 
     # Transposed matvec and parameter-gradient in a single matvec
     _, vjp = jax.vjp(lambda u, v: matvec(u, *v), q, params)
     vecmat_lambda, dp_increment = vjp(lambda_k)
+    old_lambda_k = lambda_k
 
     # jax.debug.print("idx: {}", idx, ordered=True)
 
@@ -437,8 +438,11 @@ def _hessenberg_adjoint_step(
     lambda_k = xi - (alpha * lambda_k - vecmat_lambda) - beta_plus @ Lambda.T
     lambda_k /= beta_minus
 
+    # jax.debug.print("Gamma:\n{}", Gamma.round(5))
+
     def test(i):
-        pass
+        jax.debug.print("old lambda_k: {}", old_lambda_k)
+        jax.debug.print("{}: Q T A T lam = {}", idx, vecmat_lambda @ Q, ordered=True)
         # jax.debug.print("!!!Vecmat_Lambda: \n{}", vecmat_lambda)
         # jax.debug.print("lambda:\n{}", lambda_k)
         # jax.debug.print("Gamma:\n{}", Gamma.round(5))
@@ -446,7 +450,7 @@ def _hessenberg_adjoint_step(
         # ok = Q.T @ d_Q
 
     jax.lax.cond(
-        idx == 3,
+        True,
         true_fun=test,
         false_fun=lambda *p: None,
         operand=idx,
