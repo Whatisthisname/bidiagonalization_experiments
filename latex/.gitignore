@@ -1,0 +1,68 @@
+# Let's not track the PDF (we can always generate it)
+document.pdf
+
+# LaTeX intermediate and output files
+*.aux
+*.bbl
+*.blg
+*.brf
+*.fls
+*.fdb_latexmk
+*.log
+*.out
+*.synctex.gz
+*.toc
+*.lot
+*.lof
+*.nav
+*.snm
+*.vrb
+*.xdv
+
+# Bibliography
+*.bcf
+*.run.xml
+
+# Indexing
+*.idx
+*.ilg
+*.ind
+*.ist
+
+# Glossaries
+*.acn
+*.acr
+*.alg
+*.glg
+*.glo
+*.gls
+*.glsdefs
+
+# Latexmk & arara
+*.dvi
+*.pdfsync
+*.ps
+*.gz
+
+# Editor/IDE specific
+*~
+*.swp
+*.bak
+*.tmp
+*.backup
+*.synctex(busy)
+
+# TeXShop (Mac)
+*.texpadtmp
+*.tsbackup
+
+# TeXworks
+*.pdfsync
+
+# LyX
+*.lyx~
+
+# Build directory (common convention)
+build/
+latex.out/
+
