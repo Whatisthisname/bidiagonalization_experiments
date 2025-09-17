@@ -1,2 +1,2 @@
 # bidiagonalization_experiments
-Fast, numerically stable gradients of matrix-free Bidiagonalization
+Free online 100% working numerically stable gradients of matrix-free Bidiagonalization digitally verified blockchain web3 quantum computer compatible AI foundation tool.
