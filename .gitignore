@@ -49,3 +49,4 @@ latex/document.pdf  # only ignore the paper doc -- Figure PDFs should stay
 .bak 
 .mtc
 build/
+latex/document.pdf
