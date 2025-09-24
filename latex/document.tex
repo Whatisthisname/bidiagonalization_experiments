@@ -381,7 +381,7 @@ Starting from \eqref{eq:get_gamma}, replacing $K$ with $2K$, we plug in our spar
 \begin{align}
     \eqref{eq:get_gamma} \implies \gamma &= \nabla_{\dddot{H}} \rho e_{2K} - \dddot{Q}^\top \nabla_{\dddot{r}} \rho = \nabla_{\alpha_{K}} \rho e_{2K-1} - \dddot{Q}^\top \begin{pmatrix}\mathbf{0} \\ \nabla_r\rho\end{pmatrix} 
     \\
-    &= \begin{pmatrix}0 \\ 0 \\ 0 \\ 0 \\ \vdots \\ 0 \\ \nabla_{\alpha_K} \rho \\ 0\end{pmatrix}  - \begin{pmatrix}r_1^\top \\ \mathbf{0}^\top \\ r_2^\top \\ \mathbf{0}^\top \\ \vdots \\\mathbf{0}^\top\\ r_K^\top \\ \mathbf{0}^\top\end{pmatrix} \nabla_{r} \rho \equiv \begin{pmatrix}* \\ 0 \\ * \\ 0 \\ \vdots \\ 0 \\ * \\ 0\end{pmatrix}
+    &= \begin{pmatrix}0 \\ 0 \\ 0 \\ 0 \\ \vdots \\ 0 \\ \nabla_{\alpha_K} \rho \\ 0\end{pmatrix}  - \begin{pmatrix}r_1^\top \\ \mathbf{0}^\top \\ r_2^\top \\ \mathbf{0}^\top \\ \vdots \\\mathbf{0}^\top\\ r_K^\top \\ \mathbf{0}^\top\end{pmatrix} \nabla_{r} \rho \equiv \begin{pmatrix}* \\ 0 \\ * \\ 0 \\ \vdots \\ 0 \\ * \\ 0\end{pmatrix} \label{eq:gamma_sparsity_pattern}
 \end{align}
 We plug this pattern into \eqref{eq:get_last_lambda}, which shows that $\lambda_{2K}$ has the same sparsity pattern as $\dddot{v}$:
 \begin{align}
@@ -470,7 +470,46 @@ As can be seen, it is exactly zero in the odd entries. For odd $i$, we have that
 \end{align}
 Together, these imply that $\Gamma$ has a checkered sparsity pattern. In the analysis above we skipped the fact that $\Gamma$ is additionally lower triangular, meaning that the checkered pattern is only in the lower triangle.
 \subsubsection{Finishing the induction for the sparsity of $\Lambda$}
-
+This will be our induction hypothesis:
+\begin{align}
+    \text{for odd $i$: } & & \lambda_i &\equiv \begin{bmatrix} * & * & \cdots &  * & 0 & 0 &\cdots & 0\end{bmatrix} ^\top \\
+    \text{for even $i$: } & & \lambda_i &\equiv \begin{bmatrix} 0 & 0 & \cdots & 0 & * & * & \cdots & *\end{bmatrix} ^\top
+\end{align}
+We will do induction backwards from $i=2K$ to $i=1$ and assume that it holds for the current and all preceding iterations $j \in \{i, i+1, \dots, 2K\}$. The base case $i = 2K$ is proven by \eqref{eq:lambda_2K_sparsity_pattern}.
+\\
+Assume now that it holds for even $i$. We will show that it then holds for the following odd $i-1$. Later we will show the step from odd $i$ to even $i-1$.
+\subsubsection{Step 1: From even $i$ to odd $i-1$}
+For this, we consider \eqref{eq:get_lambda_i} and plug in the sparse output of $\overline{\texttt{Bidiagonalize}}_{2K}$:
+\begin{align}
+    \!\!\!\!\!\begin{array}{cc}
+        - \lambda & \!\!i = 1 \\
+      h_{i, i\!-\!1} \lambda_{i\!-\!1} & \!\!i > 1
+   \end{array}\!\!\bigg\} &\!= \!\nabla_{\dddot{q_i}} \rho + \dddot{A}^\top \lambda_i - \!\sum_{j=i}^{K} h_{ij} \lambda_j + \dddot{Q}(\Gamma + \Gamma^\top)e_i + \dddot{r} \gamma^\top e_i
+\end{align}
+Now for the tedious task of expanding into sparsity pattern, we will again look at the terms separately and then combine. For even $i$:
+\begin{align}
+    \dddot{A}^\top \lambda_i = \begin{bmatrix} \mathbf{0} & A \\ A^\top & \mathbf{0} \end{bmatrix} \lambda_i &\equiv \begin{bmatrix} \mathbf{0} & A \\ A^\top & \mathbf{0} \end{bmatrix} \begin{bmatrix} 0 & 0 & \cdots & 0 & * & * & \cdots & *\end{bmatrix} ^\top 
+    \\
+    &\equiv \begin{bmatrix} * & * & \cdots &  * & 0 & 0 &\cdots & 0\end{bmatrix} ^\top
+\end{align}
+Next term, $\sum_{j=i}^{K} h_{ij} \lambda_j$ can also be simplified. From the sparsity of $\dddot{H}$ shown in \eqref{eq:H_sparsity_pattern}, we can simplify this sum severely, and use the assumption that the induction hypothesis holds for the preceding odd $i+1$:
+\begin{align}
+    \sum_{j=i}^{K} h_{ij} \lambda_j =  h_{i,i+1} \lambda_{i+1} \equiv  \begin{bmatrix} * & * & \cdots &  * & 0 & 0 &\cdots & 0\end{bmatrix} ^\top
+\end{align}
+Next up, $\dddot{Q}(\Gamma + \Gamma^\top)e_i$ can be simplified. From the sparsity of $\dddot{Q}$ shown in \eqref{eq:Q_sparsity_pattern}, and the further sparsity of $\Gamma$ shown previously which we are actually jointly proving inductively (TODO CLARIFY / CLEAN UP ARGUMENT AND REFERENCE EQUATION), we get:
+\begin{align}
+    \dddot{Q}(\Gamma + \Gamma^\top)e_i &= \begin{bmatrix} \mathbf{0} & l_1 & \mathbf{0} & l_2 & \cdots & \mathbf{0} & l_k \\ 
+    r_1 & \mathbf{0} & r_2 & \mathbf{0} & \cdots & r_k & \mathbf{0} \end{bmatrix} (\Gamma + \Gamma^\top)e_i
+    \\
+    &\equiv \begin{bmatrix} \mathbf{0} & \mathbf{*} & \mathbf{0} & \mathbf{*} & \cdots & \mathbf{0} & \mathbf{*} \\ 
+    \mathbf{*} & \mathbf{0} & \mathbf{*} & \mathbf{0} & \cdots & \mathbf{*} & \mathbf{0} \end{bmatrix} \begin{bmatrix} 0 & * & 0 &  * & \cdots & 0 & *\end{bmatrix} ^\top
+    \\
+    &\equiv \begin{bmatrix} * & * & \cdots &  * & 0 & 0 &\cdots & 0\end{bmatrix} ^\top
+\end{align}
+Last term, $\dddot{r} \gamma^\top e_i$ can also be simplified severely (it drops out). The sparsity of $\gamma$ shown in \eqref{eq:gamma_sparsity_pattern} shows that $\gamma^\top e_i = 0$ for all even $i$.
+\\ 
+Since all of the terms have sparsity pattern $\begin{bmatrix} * & * & \cdots &  * & 0 & 0 &\cdots & 0\end{bmatrix} ^\top$, their sum has the same pattern, and we have proven the induction hypothesis from even $i$ to odd $i-1$.
+\subsubsection{Step 2: From odd $i$ to even $i-1$}
 \subsubsection{Step 3: Summary? (TODO), or is it unnecessary?}
 We will now give new names to all nonzero entries in $\Lambda, \Gamma, \lambda, \gamma$, and then show a more compact expression for the stable adjoint system.
 As shown, $\Gamma$ has a checkered pattern, which, here exemplified for $K=6$ we name as: 
