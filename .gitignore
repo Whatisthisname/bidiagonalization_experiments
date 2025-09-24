@@ -33,7 +33,8 @@ data
 *.nlo
 *.nls
 *.out
-latex/document.pdf  # only ignore the paper doc -- Figure PDFs should stay
+# only ignore the paper doc -- Figure PDFs should stay
+latex/document.pdf  
 *.pyg
 *.run.xml
 *.snm
@@ -49,4 +50,3 @@ latex/document.pdf  # only ignore the paper doc -- Figure PDFs should stay
 .bak 
 .mtc
 build/
-latex/document.pdf
