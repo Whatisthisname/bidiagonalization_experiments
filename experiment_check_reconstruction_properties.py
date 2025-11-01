@@ -1,5 +1,5 @@
-from functools import partial
-from bidiag import bidiagonalize as bidiagonalize, BidiagOutput
+from typing import Literal
+from algo_bidiag import bidiagonalize as bidiagonalize
 
 import jax
 import jax.flatten_util
@@ -8,7 +8,7 @@ import matplotlib.pyplot as plt
 import tqdm
 from tueplots import axes, figsizes, fontsizes
 import os
-from hessenberg import hessenberg
+from algo_hessenberg import hessenberg
 
 
 def hilbert_matrix(ndim, /):
@@ -19,17 +19,6 @@ def hilbert_matrix(ndim, /):
 def normal_matrix(ndim):
     seed = 1
     return jax.random.normal(key=jax.random.PRNGKey(seed), shape=(ndim, ndim))
-
-
-def matching_directory(file, where, /, replace="experiments/"):
-    if where not in ["data/", "figures/", "results/"]:
-        raise ValueError
-    if replace not in ["experiments/"]:
-        raise ValueError
-
-    # Read directory name and replace "experiments" with e.g. "data"
-    directory_file = os.path.dirname(file) + "/"
-    return directory_file.replace(replace, where)
 
 
 plt.rcParams.update(axes.lines())
@@ -49,6 +38,7 @@ setups = {
     # (True, True, True, "none"): "AH: Adj. w/o re-proj.",
     (False, True, True, "none"): "BD: Adj. w/o re-proj.",
 }
+loss_type: Literal["reconstruct", "jacobian"] = "reconstruct"
 styles_all = {"linewidth": 1.0, "alpha": 0.8}
 styles = {
     (True, True, True, "match"): {
@@ -71,7 +61,7 @@ styles = {
 for (use_hessenberg, custom, reortho, match), label in tqdm.tqdm(
     setups.items(), desc="Testing setups"
 ):
-    ns = jnp.arange(8, 64, step=4)
+    ns = jnp.arange(8, 64, step=8)  # step = 4
     loss = []
     # bd_loss = []
     for n in tqdm.tqdm(ns, desc=f"Testing {label}", leave=False):
@@ -101,8 +91,7 @@ for (use_hessenberg, custom, reortho, match), label in tqdm.tqdm(
         flat, unflatten = jax.flatten_util.ravel_pytree(A)
 
         @jax.jit
-        @jax.jacrev
-        def identity(x):
+        def decompose_reconstruct(x):
             a = unflatten(x)
 
             if use_hessenberg:
@@ -129,32 +118,48 @@ for (use_hessenberg, custom, reortho, match), label in tqdm.tqdm(
             B = jnp.diag(alphas) + jnp.diag(betas, k=1)
             return jax.flatten_util.ravel_pytree(ls @ B @ rs.T)[0]
 
-        # dv, dparam = jax.vjp(identity, flat)[1](flat)
-        result, vjpfun = jax.vjp(
-            lambda vv, pp: bd_func(lambda v, p: p @ v, vv, pp), v, A
-        )
-        dv, dA = vjpfun(result)
+        # result, vjpfun = jax.vjp(
+        #     lambda vv, pp: bd_func(lambda v, p: p @ v, vv, pp), v, A
+        # )
+        # dv, dA = vjpfun(result)
 
-        diff = jnp.eye(len(flat)) - identity(flat)
-        # diff = flat - identity(flat)
-        error = jnp.sqrt(jnp.mean(diff**2))
+        if loss_type == "reconstruct":
+            # The norm of the input vs the output should be zero if it faithfully reconstructs.
+            decomposition_diff = flat - decompose_reconstruct(flat)
+            error = jnp.sqrt(jnp.mean(decomposition_diff**2))
+
+        elif loss_type == "jacobian":
+            # The jacobian of the identity function should be a diagonal matrix with all 1s - the identity matrix.
+            jacobian_diff = jnp.eye(len(flat)) - jax.jacrev(decompose_reconstruct)(flat)
+            error = jnp.sqrt(jnp.mean(jacobian_diff**2))
+
         loss.append(error)
 
-    loss = jnp.asarray(loss)
-
-    print("loss and hessenberg", use_hessenberg, loss)
-
     plt.semilogy(
-        ns, loss, label=label, **styles[(use_hessenberg, custom, reortho, match)]
+        ns,
+        jnp.asarray(loss),
+        label=label,
+        **styles[(use_hessenberg, custom, reortho, match)],
     )
 
 plt.legend(fontsize="xx-small")
 plt.xlabel("Hilbert matrix size", fontsize="small")
-plt.ylabel("Loss of accuracy", fontsize="small")
-# plt.ylim((1e-18, 1e0))
+plt.ylabel(f"Loss of\n{loss_type} accuracy", fontsize="small")
+
+
+def matching_directory(file, where, /, replace="experiments/"):
+    if where not in ["data/", "figures/", "results/"]:
+        raise ValueError
+    if replace not in ["experiments/"]:
+        raise ValueError
+
+    # Read directory name and replace "experiments" with e.g. "data"
+    directory_file = os.path.dirname(file) + "/"
+    return directory_file.replace(replace, where)
+
 
 directory_fig = matching_directory(__file__, "figures/")
 os.makedirs(directory_fig, exist_ok=True)
-plt.savefig(f"{directory_fig}accuracy_loss.pdf")
+plt.savefig(f"{directory_fig}{loss_type}_accuracy_loss.pdf")
 
 plt.show()

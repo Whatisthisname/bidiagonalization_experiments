@@ -8,9 +8,9 @@ import jax.numpy as jnp
 import numpy as np
 from tqdm import tqdm
 
-from hessenberg import hessenberg
-from bidiag import bidiagonalize, BidiagOutput
-from benchmark_plot_utils import suite_sparse_load
+from algo_hessenberg import hessenberg
+from algo_bidiag import bidiagonalize, BidiagOutput
+from experiment_benchmark_plot_utils import suite_sparse_load
 import jax.experimental.sparse
 
 
@@ -199,7 +199,6 @@ def _measure_profile(
     out = fwd_fn_jit(v, params)
     _block_until_ready_pytree(out)
     fwd_compile = time.perf_counter() - t0
-    print("fwd compile\n", fwd_compile)
 
     fwd_steady = []
     for _ in range(steady_repeats):
@@ -207,7 +206,6 @@ def _measure_profile(
         x = fwd_fn_jit(v, params)
         _block_until_ready_pytree(x)
         fwd_steady.append(time.perf_counter() - t0)
-    print("fwd steady\n", fwd_steady)
 
     # Backward timings
     _, cotan = jax.value_and_grad(loss_fn)(out)
@@ -219,7 +217,6 @@ def _measure_profile(
     b2 = vjp_fn(cotan)
     _block_until_ready_pytree(b2)
     bwd_compile = time.perf_counter() - t0
-    print("bwd compile\n", bwd_compile)
 
     bwd_steady = []
     for _ in range(steady_repeats):
@@ -227,7 +224,6 @@ def _measure_profile(
         y = vjp_fn(cotan)
         _block_until_ready_pytree(y)
         bwd_steady.append(time.perf_counter() - t0)
-    print("bwd steady\n", bwd_steady)
 
     # Optional true compile timings
     if include_true_compile and False:
@@ -370,88 +366,6 @@ def filter_existing_profiles(profiles: list[dict], path: str) -> list[dict]:
     return filtered
 
 
-# def _run_benchmark_for_config(size: int, k: int, repeats: int, methods: list[str]):
-#     n = m = size
-
-#     key = jax.random.PRNGKey(0)
-#     A = jax.random.normal(key, shape=(n, m))
-#     v = jax.random.normal(jax.random.split(key)[1], shape=(m,))
-
-#     # Build functions conditionally
-#     build_map: dict[str, tuple[Callable, Callable]] = {}
-#     if "hess" in methods:
-#         build_map["hess"] = _build_primal_and_cotangent_hess(n, m, k)
-#     if "bidiag_custom" in methods:
-#         build_map["bidiag_custom"] = _build_primal_and_cotangent_bidiag(k)
-#     if "bidiag_autodiff" in methods:
-#         build_map["bidiag_autodiff"] = _build_primal_and_cotangent_bidiag_autodiff(k)
-
-#     # Warmup compile and compute cotangents once
-#     primals: dict[str, object] = {}
-#     bars: dict[str, object] = {}
-#     vjp_fns: dict[str, Callable] = {}
-#     for method, (primal, cotan_fn) in build_map.items():
-#         out = primal(v, A)
-#         primals[method] = out
-#         _block_until_ready_pytree(out)
-#         bar = cotan_fn(out)
-#         bars[method] = bar
-#         _, vjp_fn = jax.vjp(lambda vv, AA, p=primal: p(vv, AA), v, A)
-#         vjp_fns[method] = jax.jit(vjp_fn)
-#         _block_until_ready_pytree(vjp_fns[method](bar))
-
-#     # Measure forward times
-#     fwd_times: dict[str, list[float]] = {m: [] for m in build_map}
-#     for _ in range(repeats):
-#         for method, (primal, _) in build_map.items():
-#             t0 = time.time()
-#             _block_until_ready_pytree(primal(v, A))
-#             fwd_times[method].append(time.time() - t0)
-
-#     # Measure backward times
-#     bwd_times: dict[str, list[float]] = {m: [] for m in build_map}
-#     for _ in range(repeats):
-#         for method in build_map:
-#             t0 = time.time()
-#             _block_until_ready_pytree(vjp_fns[method](bars[method]))
-#             bwd_times[method].append(time.time() - t0)
-
-#     return {k: np.array(v) for k, v in fwd_times.items()}, {
-#         k: np.array(v) for k, v in bwd_times.items()
-#     }
-
-
-# def benchmark(matrix_sizes, matvec_nums, methods: list[str], repeats=5):
-#     # Prepare per-method containers for means/stds
-#     fwd_mean = {m: np.zeros((len(matrix_sizes), len(matvec_nums))) for m in methods}
-#     fwd_std = {m: np.zeros((len(matrix_sizes), len(matvec_nums))) for m in methods}
-#     bwd_mean = {m: np.zeros((len(matrix_sizes), len(matvec_nums))) for m in methods}
-#     bwd_std = {m: np.zeros((len(matrix_sizes), len(matvec_nums))) for m in methods}
-
-#     total = len(matrix_sizes) * len(matvec_nums)
-#     pbar = tqdm(total=total, desc="Benchmarking")
-#     for i, size in enumerate(matrix_sizes):
-#         for j, k in enumerate(matvec_nums):
-#             pbar.set_description(f"n=m={size}, k={k}")
-#             fwd_times, bwd_times = _run_benchmark_for_config(
-#                 int(size), int(k), repeats, methods
-#             )
-#             for m in methods:
-#                 fwd_mean[m][i, j] = fwd_times[m].mean()
-#                 fwd_std[m][i, j] = fwd_times[m].std()
-#                 bwd_mean[m][i, j] = bwd_times[m].mean()
-#                 bwd_std[m][i, j] = bwd_times[m].std()
-#                 pbar.update(1)
-#     pbar.close()
-#     return {
-#         "methods": methods,
-#         "fwd_mean": fwd_mean,
-#         "fwd_std": fwd_std,
-#         "bwd_mean": bwd_mean,
-#         "bwd_std": bwd_std,
-#     }
-
-
 # hess_aug, bidiag
 if __name__ == "__main__":
     # Generate profiles for all combinations of parameters
@@ -477,11 +391,11 @@ if __name__ == "__main__":
     #                     )
 
     # Also run the same sweeps for selected SuiteSparse matrices (shape implied by file)
-    for alg in ["bidiag"]:
-        for reorth in [True]:
+    for alg in ["bidiag", "hess_aug"]:
+        for reorth in [False, True]:
             for custom_vjp in [True]:
                 for matrix_name in ["1138_bus"]:
-                    for k in np.linspace(20, 500, 7, dtype=int):
+                    for k in np.linspace(20, 200, 4, dtype=int):
                         profiles.append(
                             {
                                 "algorithm": alg,

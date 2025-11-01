@@ -252,6 +252,7 @@ def plot_profiles(
         ax2.plot(k, backprop_c, color="#ff7f0e", label="Backprop (autodiff)")
         ax2.set_xlabel("Krylov-space depth k")
         ax2.set_ylabel("Wall time (sec)")
+        ax2.set_yscale("log")
         ax2.grid(True, alpha=0.3)
         ax2.legend()
 
@@ -316,10 +317,13 @@ def plot_profiles_for_sparse_matrix(
         ax2.set_title(f"{title_prefix}: Compile time on {matrix}")
         ax2.plot(k, forward_c, linestyle="--", color="black", label="Forward")
         ax2.plot(k, adjoint_c, color="#1f77b4", label="Adjoint (custom)")
-        ax2.plot(k, backprop_c, color="#ff7f0e", label="Backprop (autodiff)")
+        ax2.plot(
+            k, backprop_c, color="#ff7f0e", label="Backprop (autodiff)", linewidth=10
+        )
         ax2.set_xlabel("Krylov-space depth k")
         ax2.set_ylabel("Wall time (sec)")
         ax2.grid(True, alpha=0.3)
+        ax2.set_yscale("log")
         ax2.legend()
 
         plt.tight_layout()

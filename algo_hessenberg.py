@@ -4,8 +4,6 @@ import jax.numpy as jnp
 from jax import Array
 import jax
 
-jax.config.update("jax_enable_x64", True)
-
 
 def arnoldi(matvecs_num: int, custom_vjp: bool, reorthogonalize: bool):
     def estimate(matvec, v0, *params):
@@ -107,12 +105,17 @@ class _DecompResult(NamedTuple):
     init_length_inv: Array
 
 
-def reduced_hessenberg(
-    num_matvecs, /, *, reortho: str, custom_vjp: bool = True, reortho_vjp: str = "match"
+def hessenberg(
+    num_matvecs,
+    /,
+    *,
+    reortho: bool,
+    custom_vjp: bool = True,
+    reortho_vjp: str = "match",
 ):
     r"""Construct a **Hessenberg-factorisation** via the Arnoldi iteration.
 
-    Uses pre-allocation, and full reorthogonalisation if `reortho` is set to `"full"`.
+    Uses pre-allocation, and full reorthogonalisation if `reortho` is set to True.
     It tends to be a good idea to use full reorthogonalisation.
 
     This algorithm works for **arbitrary matrices**.
@@ -135,10 +138,6 @@ def reduced_hessenberg(
         }
         ```
     """
-    reortho_expected = ["none", "full"]
-    if reortho not in reortho_expected:
-        msg = f"Unexpected input for {reortho}: either of {reortho_expected} expected."
-        raise TypeError(msg)
 
     def estimate(matvec, real_size, v, *params):
         matvec_convert, aux_args = jax.closure_convert(matvec, v, *params)
@@ -163,12 +162,12 @@ def reduced_hessenberg(
             *params,
             Q=Q,
             H=H,
-            res=r,
+            r=r,
             c=c,
             dQ=dQ,
             dH=dH,
             dres=dr,
-            dc=dc,
+            d_c=dc,
             reortho=reortho,
         )
 
@@ -180,8 +179,7 @@ def reduced_hessenberg(
 
 def _hessenberg_forward(matvec, real_size, num_matvecs, v, *params, reortho: str):
     if num_matvecs < 0 or num_matvecs > len(v):
-        msg = "fuck"  # error_num_matvecs(num_matvecs, maxval=len(v), minval=0)
-        raise ValueError(msg)
+        raise ValueError("fuck")
 
     # Initialise the variables
     (n,), k = jnp.shape(v), num_matvecs
@@ -189,11 +187,6 @@ def _hessenberg_forward(matvec, real_size, num_matvecs, v, *params, reortho: str
     H = jnp.zeros((k, k), dtype=v.dtype)
     initlength = jnp.sqrt(v @ v)
     init = (Q, H, v, initlength)
-
-    if num_matvecs == 0:
-        return _DecompResult(
-            Q_tall=Q, J_small=H, residual=v, init_length_inv=1 / initlength
-        )
 
     # Fix the step function
     def forward_step(i, val):
@@ -216,6 +209,7 @@ def _hessenberg_forward_step(Q, H, v, length, matvec, *params, idx, reortho: str
 
     # Orthonormalise
     h = Q.T @ v
+
     v = v - Q @ h
 
     # Re-orthonormalise
@@ -233,13 +227,11 @@ def _hessenberg_forward_step(Q, H, v, length, matvec, *params, idx, reortho: str
 
 
 def _hessenberg_adjoint(
-    matvec, real_size, *params, Q, H, res, c, dQ, dH, dres, dc, reortho: str
+    matvec, real_size, *params, Q, H, r, c, dQ, dH, dres, d_c, reortho: str
 ):
     # Extract the matrix shapes from Q
     _, num_matvecs = jnp.shape(Q)
     n, m = real_size
-
-    (A,) = params
 
     # Prepare a bunch of auxiliary matrices
 
@@ -250,101 +242,140 @@ def _hessenberg_adjoint(
     e_1, e_K = jnp.eye(num_matvecs)[[0, -1], :]
     lower_mask = lower(jnp.ones((num_matvecs, num_matvecs)))
 
+    # Initialise
+    # dH = dH + dH.T
+    # jax.debug.print("dH: {}", dH.round(3))
+    # dH *= 10000  #  dH + dH.T * 5
+    eta = dH @ e_K - Q.T @ dres
+    # jax.debug.print("res gammaT: {}", jnp.outer(r, eta))
+    neg_lambda_k = dres + Q @ eta
+    # jax.debug.print("lamk: {}", lambda_k)
+    Lambda = jnp.zeros_like(Q)
+    Gamma = jnp.zeros_like(dQ.T @ Q)
+    dp = jax.tree.map(jnp.zeros_like, params)
+
+    # Prepare more  auxiliary matrices
+    Pi_xi = dQ.T + jnp.linalg.outer(eta, r)
+    Pi_gamma = -d_c * c * jnp.linalg.outer(e_1, e_1) + H @ dH.T - (dQ.T @ Q)
+
+    # jax.debug.print("Q term: {}", Q.T @ dQ)
+
+    # jax.debug.print("H @ (dH + dH.T)\n{}", H @ (dH + dH.T))
+    # jax.debug.print("H @ dH.T\n{}", H @ dH.T)
+
+    # Prepare reorthogonalisation:
+    reortho_mask = jnp.tril(jnp.ones((num_matvecs, num_matvecs)), 1)
+
+    # Loop over those values
+    indices = jnp.arange(0, len(H), step=1)
+    beta_minuses = jnp.concatenate([jnp.ones((1,)), jnp.diag(H, -1)])
+    alphas = jnp.diag(H)
+    beta_pluses = H - jnp.diag(jnp.diag(H)) - jnp.diag(jnp.diag(H, -1), -1)
+    scan_over = {
+        "beta_minus": beta_minuses,
+        "alpha": alphas,
+        "beta_plus": beta_pluses,
+        "idx": indices,
+        "lower_mask": lower_mask,
+        "Pi_gamma": Pi_gamma,
+        "Pi_xi": Pi_xi,
+        "dH_k": dH.T,
+        "reortho_mask_k": reortho_mask,
+        "q": Q.T,
+    }
+
+    # Fix the step function
+    def adjoint_step(x, y):
+        output = _hessenberg_adjoint_step(
+            *x, **y, matvec=matvec, params=params, Q=Q, reortho=reortho
+        )
+        return output, ()
+
+    # Scan
+    init = (neg_lambda_k, Lambda, Gamma, dp)
+    result, _ = jax.lax.scan(adjoint_step, init, xs=scan_over, reverse=True)
+    (neg_lambda_k, Lambda, Gamma, dp) = result
+
+    # jax.debug.print("Lambda:\n{}", Lambda)
+    # jax.debug.print("Gamma:\n{}", Gamma)
+
     rlrlrl = Q
     ls = rlrlrl[:n, 1::2]
     rs = rlrlrl[n:, 0::2]
     ababab = jnp.diag(H, k=1)
-    as_ = ababab[::2]
-    bs = ababab[1::2]
-    res = res[n:]
+    alphas = ababab[::2]
+    betas = ababab[1::2]
+    res = r[n:]
 
     d_rlrlrl = dQ
     d_ls = d_rlrlrl[:n, 1::2]
     d_rs = d_rlrlrl[n:, 0::2]
     d_ababab = jnp.diag(dH, k=1)
-    d_as = d_ababab[::2]
-    d_bs = d_ababab[1::2]
+    d_alphas = d_ababab[0::2]
+    d_betas = d_ababab[1::2]
     dres = dres[n:]
 
-    e_1, e_K = jnp.eye(num_matvecs)[[0, -1], :]
+    B = jnp.diag(alphas) + jnp.diag(betas, k=1)
 
-    # Holds only the odd gammas, g1, g3, g5, because the rest are zero.
+    (A,) = params
+    upsdowns = Lambda
+    downs = upsdowns[n:, 1::2]
+    ups = upsdowns[:n, 0::2]
 
-    ups = jnp.zeros((n, num_matvecs // 2))
-    downs = jnp.zeros((m, num_matvecs // 2))
-    gamma = -rs.T @ dres
-    gamma = gamma.at[-1].add(d_as[-1])
+    Omega = Gamma[0::2, 0::2]
+    Sigma = Gamma[1::2, 1::2]
 
-    first_down = dres + rs @ gamma
-
-    GpGT = jnp.zeros((num_matvecs, num_matvecs))
-
-    just_in_case = c * jnp.array([dc])
-
-    def do_ups(i, beta_down, ups, downs, GpGT):
-        downs = downs.at[:, i].set(beta_down)
-        A_down = A @ downs[:, i]
-        _added_gamma = ls.T @ (-d_ls[:, i] - A_down)
-        _added_gamma = _added_gamma.at[i - 1].add(as_[i] * d_bs[i - 1])
-        _added_gamma = _added_gamma.at[i].add(
-            bs.at[i].get(mode="fill", fill_value=0.0) * d_bs[i]
+    if False:
+        equals_zero_hopefully_1 = d_ls + A @ downs - ups @ B.T + ls @ (Sigma + Sigma.T)
+        equals_zero_hopefully_2 = (
+            d_rs
+            + A.T @ ups
+            - downs @ B
+            + rs @ (Omega + Omega.T)
+            + jnp.outer(-neg_lambda_k[n:], jnp.array([1, 0, 0]))
+            + jnp.outer(res, eta[0::2])
         )
-        GpGT = GpGT.at[2 * i + 1, 1 : 2 * i + 2 : 2].set(_added_gamma[: i + 1])
-        GpGT = GpGT.T.at[2 * i + 1, 1 : 2 * i + 2 : 2].set(_added_gamma[: i + 1])
+        jax.debug.print("equals_zero_hopefully:, {}", equals_zero_hopefully_1)
+        jax.debug.print("equals_zero_hopefully:, {}", equals_zero_hopefully_2)
 
-        up = (
-            d_ls[:, i]
-            + A_down
-            - bs.at[i].get(mode="fill", fill_value=0.0) * ups[:, i + 1]
-            + ls @ GpGT[1::2, 2 * i + 1]
-        ) / as_[i]
-        ups = ups.at[:, i].set(up)
-        return ups, downs, GpGT
-
-    def do_downs(i, ups, downs, GpGT):
-        AT_up = A.T @ ups[:, i]
-        _added_gamma = rs.T @ (-d_rs[:, i] - AT_up)
-        _added_gamma = _added_gamma.at[i - 1].add(bs[i] * d_as[i - 1])
-        _added_gamma = _added_gamma.at[i].add(as_[i] * d_as[i])
-        GpGT = GpGT.at[2 * i, 0 : 2 * i + 2 : 2].set(_added_gamma[: i + 1])
-        GpGT = GpGT.T.at[2 * i, 0 : 2 * i + 2 : 2].set(_added_gamma[: i + 1])
-        GpGT = GpGT.at[0, 0].subtract(
-            just_in_case.at[i].get(mode="fill", fill_value=0.0)
-        )  # will only do something at i = 0
-
-        beta_down_or_delta = (
-            d_rs[:, i]
-            + AT_up
-            - as_[i] * downs[:, i]
-            + rs @ GpGT[0::2, 2 * i]
-            + gamma[i] * res
+        jax.debug.print(
+            "Also please zer0::\n{}",
+            (c * d_c - rs[:, 0] @ (-neg_lambda_k[n:])).round(3),
+        )
+        jax.debug.print(
+            "Finally please zer0::\n{}",
+            (-downs[:, -1] + dres + rs @ eta[0::2]).round(5),
         )
 
-        return beta_down_or_delta, ups, downs, GpGT
+        block_A = jnp.block([[jnp.zeros((n, n)), A], [A.T, jnp.zeros((m, m))]])
 
-    down = first_down
-
-    for i in range(num_matvecs // 2 - 1, -1, -1):  # i = [n .. 0]
-        jax.debug.print("i={}", i)
-        ups, downs, GpGT = do_ups(
-            i=i,
-            # divide by 1 in first iteration:
-            beta_down=down / bs.at[i].get(mode="fill", fill_value=1.0),
-            ups=ups,
-            downs=downs,
-            GpGT=GpGT,
+        pls_zero = (
+            dQ
+            + block_A @ Lambda
+            - Lambda @ H.T
+            + jnp.outer(-neg_lambda_k, e_1)
+            + Q @ (Gamma + Gamma.T)
+            + jnp.outer(r, eta)
         )
-        down, ups, downs, GpGT = do_downs(i=i, ups=ups, downs=downs, GpGT=GpGT)
+        jax.debug.print("Zero? norm = {}\n{}", jnp.linalg.norm(pls_zero), pls_zero)
 
-    jax.debug.print("GpGT: \n{}", GpGT)
-    jax.debug.print("ups: \n{}", ups)
-    jax.debug.print("downs: \n{}", downs)
-    jax.debug.print("down: \n{}", down)
+        jax.debug.print(
+            "Finally please zer0::\n{}",
+            (-downs[:, -1] + dres + rs @ eta[0::2]).round(5),
+        )
 
-    dv = None
-    dp = (None,)
+        jax.debug.print(
+            "The ls with downarrows also zero? \n{}",
+            ls.T @ ups - jnp.diag(d_betas, k=1),
+        )
+        jax.debug.print(
+            "The rs with uparrows also zero? \n{}",
+            rs.T @ downs - jnp.diag(d_alphas, k=0),
+        )
 
-    dp = jax.tree.map(jnp.ones_like, params)
+        jax.debug.print("c: {}", c)
+
+    dv = neg_lambda_k * c
 
     return (None, None), dv, *dp
 
@@ -378,21 +409,20 @@ def _hessenberg_adjoint_step(
     reortho: str,
 ):
     # Reorthogonalise
-    if reortho == "full":
+    if reortho:
         # Get rid of the (I_ll o Sigma) term by multiplying with a mask
         Q_masked = reortho_mask_k[None, :] * Q
         rhs_masked = reortho_mask_k * dH_k
-        # jax.debug.print("rhs, masked\n{}", rhs_masked)
 
         # Project x to Q^T x = y via
         # x = x - Q Q^\top x + Q Q^\top x = x - Q Q^\top x + Q y
         # (here, x = lambda_k and y = dH_k)
         lambda_k = lambda_k - Q_masked @ (Q_masked.T @ lambda_k) + Q_masked @ rhs_masked
-        # jax.debug.print(" Q_masked @ rhs_masked: \n{}", Q_masked @ rhs_masked)
 
     # Transposed matvec and parameter-gradient in a single matvec
     _, vjp = jax.vjp(lambda u, v: matvec(u, *v), q, params)
     vecmat_lambda, dp_increment = vjp(lambda_k)
+    old_lambda_k = lambda_k
 
     # jax.debug.print("idx: {}", idx, ordered=True)
 
@@ -408,16 +438,19 @@ def _hessenberg_adjoint_step(
     lambda_k = xi - (alpha * lambda_k - vecmat_lambda) - beta_plus @ Lambda.T
     lambda_k /= beta_minus
 
+    # jax.debug.print("Gamma:\n{}", Gamma.round(5))
+
     def test(i):
         pass
+        # jax.debug.print("old lambda_k: {}", old_lambda_k)
+        # jax.debug.print("{}: Q T A T lam = {}", idx, vecmat_lambda @ Q, ordered=True)
         # jax.debug.print("!!!Vecmat_Lambda: \n{}", vecmat_lambda)
         # jax.debug.print("lambda:\n{}", lambda_k)
-        # jax.debug.print("Gamma:\n{}", Gamma.round(3))
+        # jax.debug.print("Gamma:\n{}", Gamma.round(5))
         # jax.debug.print("Q @ Q.T:\n{}", Q @ Q.T)
         # ok = Q.T @ d_Q
 
     jax.lax.cond(
-        # idx == 3,
         True,
         true_fun=test,
         false_fun=lambda *p: None,
