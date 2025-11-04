@@ -1,3 +1,4 @@
+import dataclasses
 import time
 import json
 import os
@@ -107,7 +108,19 @@ def _block_until_ready_pytree(x):
     return jax.tree.map(lambda leaf: leaf.block_until_ready(), x)
 
 
-def _generate_inputs(profile: dict):
+@dataclasses.dataclass
+class Inputs:
+    v: jax.Array
+    params: jax.Array
+    params_unflatten: int
+    """Is a function"""
+    is_sparse: bool
+    sparse_matrix: jax.Array
+    custom_matvec: int
+    """Is a function"""
+
+
+def _generate_inputs(profile: dict) -> Inputs:
     key = jax.random.PRNGKey(int(profile["seed"]))
     # Prefer new field `matrix`; fall back to legacy `matrix_type` for compatibility
     matrix_name = profile.get("matrix", profile.get("matrix_type", "normal"))
@@ -117,7 +130,29 @@ def _generate_inputs(profile: dict):
         m = int(profile.get("m", profile["n"]))  # allow rectangular later
         A = jax.random.normal(key, shape=(n, m))
         v = jax.random.normal(jax.random.split(key)[1], shape=(m,))
-        return v, A, lambda x: x, False, None
+        return Inputs(
+            v=v,
+            params=A,
+            params_unflatten=lambda x: x,
+            is_sparse=False,
+            sparse_matrix=None,
+            custom_matvec=None,
+        )
+
+    if matrix_name == "diagonal":
+        n = int(profile["n"])  # rows
+        m = int(profile.get("m", profile["n"]))  # allow rectangular later
+        assert m == n, f"Must have m=n for diagonal matrix but got n={n}, m={m}"
+        diag_values = jax.random.normal(key, shape=(n,))
+        v = jax.random.normal(jax.random.split(key)[1], shape=(m,))
+        return Inputs(
+            v=v,
+            params=diag_values,
+            params_unflatten=lambda x: x,
+            is_sparse=False,
+            sparse_matrix=None,
+            custom_matvec=lambda v, params: v * params,
+        )
 
     # Sparse matrix case: load by name using SuiteSparse files already downloaded
     A = suite_sparse_load(matrix_name, path="./data/matrices/")
@@ -127,10 +162,23 @@ def _generate_inputs(profile: dict):
     profile["m"] = int(m)
     v = jax.random.normal(jax.random.split(key)[1], shape=(m,)).astype(A.dtype)
     params, params_unflatten = jax.flatten_util.ravel_pytree(A.data)
-    return v, params, params_unflatten, True, A
+    return Inputs(
+        v=v,
+        params=params,
+        params_unflatten=params_unflatten,
+        is_sparse=True,
+        sparse_matrix=A,
+        custom_matvec=None,
+    )
 
 
-def _build_primal_and_loss(profile: dict, is_sparse, params_unflatten, M):
+def _build_primal_and_loss(
+    profile: dict,
+    is_sparse: bool,
+    params_unflatten,
+    sparse_matrix: jax.Array | None,
+    custom_matvec: Callable | None,
+):
     algorithm = profile["algorithm"]
     reorthogonalize = bool(profile["reorthogonalize"])
     custom_vjp = bool(profile["custom_vjp"])
@@ -149,8 +197,12 @@ def _build_primal_and_loss(profile: dict, is_sparse, params_unflatten, M):
         def matvec(v, params):
             if is_sparse:
                 pp = params_unflatten(params)
-                matrix = jax.experimental.sparse.BCOO((pp, M.indices), shape=M.shape)
+                matrix = jax.experimental.sparse.BCOO(
+                    (pp, sparse_matrix.indices), shape=sparse_matrix.shape
+                )
                 return matrix @ v
+            elif custom_matvec is not None:
+                return custom_matvec(v, params)
             else:
                 return params @ v
 
@@ -166,10 +218,17 @@ def _build_primal_and_loss(profile: dict, is_sparse, params_unflatten, M):
             upper, lower = jnp.split(v_aug, [n])
             if is_sparse:
                 pp = params_unflatten(params)
-                A = jax.experimental.sparse.BCOO((pp, M.indices), shape=M.shape)
+                A = jax.experimental.sparse.BCOO(
+                    (pp, sparse_matrix.indices), shape=sparse_matrix.shape
+                )
+                return jnp.concatenate([A @ lower, A.T @ upper])
+            elif custom_matvec is not None:
+                return jnp.concatenate(
+                    [custom_matvec(lower, params), custom_matvec(upper, params)]
+                )
             else:
                 A = params
-            return jnp.concatenate([A @ lower, A.T @ upper])
+                return jnp.concatenate([A @ lower, A.T @ upper])
 
         re_str = "full" if reorthogonalize else "none"
         hess_func = hessenberg(2 * k, reortho=re_str, custom_vjp=custom_vjp)
@@ -187,11 +246,17 @@ def _build_primal_and_loss(profile: dict, is_sparse, params_unflatten, M):
 def _measure_profile(
     profile: dict, steady_repeats: int = 5, include_true_compile: bool = False
 ) -> dict:
-    v, params, params_unflatten, is_sparse, M = _generate_inputs(profile)
+    inputs = _generate_inputs(profile)
 
     fwd_fn, loss_fn = _build_primal_and_loss(
-        profile, is_sparse=is_sparse, params_unflatten=params_unflatten, M=M
+        profile,
+        is_sparse=inputs.is_sparse,
+        params_unflatten=inputs.params_unflatten,
+        sparse_matrix=inputs.sparse_matrix,
+        custom_matvec=inputs.custom_matvec,
     )
+
+    v, params = inputs.v, inputs.params
 
     fwd_fn_jit = jax.jit(fwd_fn)
     t0 = time.perf_counter()
@@ -371,42 +436,42 @@ if __name__ == "__main__":
     # Generate profiles for all combinations of parameters
 
     profiles = []
-    # for alg in ["bidiag"]:  # ["hess_aug", "bidiag"]:
-    #     for reorth in [True]:
-    #         for custom_vjp in [True, False]:
-    #             for n in [300]:
-    #                 for k in np.linspace(200, 300, 5, dtype=int):
-    #                     profiles.append(
-    #                         {
-    #                             "algorithm": alg,
-    #                             "reorthogonalize": reorth,
-    #                             "custom_vjp": custom_vjp,
-    #                             # "m": int(n),
-    #                             "n": int(n),
-    #                             "k": int(k),
-    #                             "matrix": "normal",
-    #                             "dtype": "float64",
-    #                             "seed": 0,
-    #                         }
-    #                     )
-
-    # Also run the same sweeps for selected SuiteSparse matrices (shape implied by file)
-    for alg in ["bidiag", "hess_aug"]:
-        for reorth in [False, True]:
-            for custom_vjp in [True]:
-                for matrix_name in ["1138_bus"]:
-                    for k in np.linspace(20, 200, 4, dtype=int):
+    for alg in ["hess_aug", "bidiag"]:
+        for reorth in [True, False]:
+            for custom_vjp in [True, False]:
+                for n in np.arange(100, 1000, 50):
+                    for k in [20, 40, 60, 80, 100]:
                         profiles.append(
                             {
                                 "algorithm": alg,
                                 "reorthogonalize": reorth,
                                 "custom_vjp": custom_vjp,
+                                # "m": int(n),
+                                "n": int(n),
                                 "k": int(k),
-                                "matrix": matrix_name,
+                                "matrix": "diagonal",
                                 "dtype": "float32",
                                 "seed": 0,
                             }
                         )
+
+    # Also run the same sweeps for selected SuiteSparse matrices (shape implied by file)
+    # for alg in ["bidiag", "hess_aug"]:
+    #     for reorth in [False, True]:
+    #         for custom_vjp in [True]:
+    #             for matrix_name in ["1138_bus"]:
+    #                 for k in np.linspace(20, 200, 4, dtype=int):
+    #                     profiles.append(
+    #                         {
+    #                             "algorithm": alg,
+    #                             "reorthogonalize": reorth,
+    #                             "custom_vjp": custom_vjp,
+    #                             "k": int(k),
+    #                             "matrix": matrix_name,
+    #                             "dtype": "float32",
+    #                             "seed": 0,
+    #                         }
+    #                     )
     out_path = "benchmarks.ndjson"
     profiles = filter_existing_profiles(profiles, out_path)
     if not profiles:
