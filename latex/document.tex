@@ -54,6 +54,8 @@
 }
 \lstset{style=mystyle}
 
+\newtheorem{theorem}{Theorem}
+
 \begin{document}
 \title{Numerically stable gradients of Golub-Kahan Bidiagonalization}
 \author{Theo Würtzen and Nicholas Krämer}
@@ -86,6 +88,20 @@ I_{\ll} := [\delta_{i+1 < j}]_{i,j=1}^K
 so that for example, $\mathbf{1} \circ A = A$, $I_{\leq} \circ A$ extracts the lower triangular matrix 
 of $A$ (including the diagonal), and $I_{\ll} \circ A = 0$ enforces Hessenberg form.
 
+\section{(Incomplete) Maybe overly complicated attempt at formalizing the sparsity notation }
+It will be convenient to denote the sparsity and dimensionality of vectors and matrices succinctly. We will use the symbol $*$ to denote an unknown value (1-dimensional). Thus, $(*, 0, 0)^\top$ can be thought of as the span of the first unit vector. Formally, define an extension of the reals as $\mathbb{R}_* = \mathbb{R} \cup \{*\}$, where the sum and product with $*$ are extended as 
+\begin{align*}
+    s + * = * \quad\quad\quad
+    s \cdot * = \bigg\{ \begin{array}{cr} 0 & s = 0 \\ * & \text{otherwise}  \end{array}
+\end{align*}
+Note that this implies $* - * = *$. For $s, s' \in \mathbb{R}_*$, define partial order $s \preceq s' \iff \square(s) \subseteq \square(s')$.
+\begin{align*}
+    % \square &: \mathbb{R}_* \to \{\mathbb{R}, \{r\} (r \in \mathbb{R})\}
+    % \\
+    \square(s) &= \bigg\{ \begin{array}{cr} \{s\} & s \in \mathbb{R} \\ \mathbb{R} & s = * \end{array}
+\end{align*}
+This implies $s \preceq *$. We extend $\mathbb{R}_*$ to vector spaces with an elementwise $+$, $\cdot$, and $\preceq$.
+
 \subsection{Matrix free linear algebra}
 Matrix-free linear algebra refers to implementing matrix operations without explicitly forming or storing the full matrices. Instead, we work with functions that compute matrix-vector products. This is particularly useful when dealing with large matrices where storing them would be impractical, or when the matrix is defined implicitly through some operation, where we never need the full matrix, only specific matrix-vector products.
 For a linear operator $A: \mathbb{R}^m \rightarrow \mathbb{R}^n$, instead of storing an $n \times m$ matrix, we represent it as a function:
@@ -109,7 +125,7 @@ Bidiagonalizing an arbitrary matrix $A \in \mathbb{R}^{N \times M}$ with initial
     \\
     R^\top r &= 0 \label{eq:bidiag_forward_constraint6}
 \end{align}
-and $B$ is diagonally banded as follows:
+and $B$ is full rank and diagonally banded as follows:
 \begin{align}
 B = \underbrace{\text{diag}(\boldsymbol{\alpha}) + \text{diag}(\boldsymbol{\beta}, \text{k=1})}_{\text{B is 'upper bidiagonal'}} = \begin{bmatrix}
 \alpha_1  & \beta_1 & 0 & 0 & 0 & 0 \\
@@ -119,7 +135,7 @@ B = \underbrace{\text{diag}(\boldsymbol{\alpha}) + \text{diag}(\boldsymbol{\beta
 0 & 0 & 0 & 0 & 0 & \alpha_K\\
 \end{bmatrix} \in \mathbb{R}^{K \times K} \label{eq:bidiag_forward_constraint7}
 \end{align}
-
+The full rank property on $B$ implies that no components of $\boldsymbol{\alpha}$ or $\boldsymbol{\beta}$ can be zero.
 
 \subsection{Hessenberg Factorization}
 $$\texttt{Hessenberg}_K: (A, v) \mapsto (Q, H, r, c)$$
@@ -170,29 +186,29 @@ which are directly related to $(L, R, B, r, c)$ through the following sparse equ
 0 & 0 & 0 & 0 & 0 & 0  & \alpha_K & 0\\
 \end{bmatrix} \in \mathbb{R}^{2K \times 2K} \label{eq:H_sparsity_pattern}
 \end{align}
-The vectors $l_i$ and $r_i$ in $\dddot{Q}$ are exactly the columns of $L$ and $R$, while the bands in $\dddot{H}$ hold the entries of the bidiagonal matrix $B$ with duplicated $\alpha_i$ and $\beta_i$ values. The residual vector $\dddot{r}$ is simply a padded version of $r$, and the inverse norm $c$ is unchanged.
+The vectors $l_i$ and $r_i$ in $\dddot{Q}$ are exactly the columns of $L$ and $R$. $\dddot{H}$ is symmetric and banded, where the two bands hold the entries of the bidiagonal matrix $B$ with twice repeated interwoven $\boldsymbol{\alpha}$ and $\boldsymbol{\beta}$ values. Recall that $\boldsymbol{\alpha}$ and $\boldsymbol{\beta}$ were everywhere nonzero. The residual vector $\dddot{r}$ is a padded version of $r$, and the inverse norm $c$ is unchanged.
 \\
-We formalize this relationship through a simple linear extraction mapping 
+We formalize this relationship through a linear extraction mapping 
 $$\texttt{extract}: (\dddot{Q}, \dddot{H}, \dddot{r}, c) \mapsto (L, R, B, r, c)$$ 
-that projects away the zeros and extracts the relevant non-zero entries from the Hessenberg outputs.\footnote{The projection from $\dddot{H}$ to $B$ is not unique, as $\dddot{H}$ contains two copies of each $\alpha_i$ and $\beta_i$. We arbitrarily select the superdiagonal entries and drop the subdiagonal entries. This choice affects the sparsity pattern of $\nabla_{\dddot{H}} \rho$ in section \ref{subsec:derivation_stable_adjoint_system}. Any other convex linear combination of each pair would also be valid.} This allows us to theoretically define \textbf{augmented Bidiagonalization} as $$\overline{\texttt{Bidiagonalize}}_K := \texttt{extract} \circ \texttt{Hessenberg}_{2K} \circ \texttt{augment} : (A, v) \mapsto (L, R, B, r, c)$$ which is functionally equivalent to standard Bidiagonalization but inherits the numerical stability properties of Hessenberg factorization's adjoint system. 
+that just projects away the zeros and extracts the relevant non-zero entries from the Hessenberg outputs.\footnote{The projection from $\dddot{H}$ to $B$ is not unique, as $\dddot{H}$ contains two copies of each $\alpha_i$ and $\beta_i$. We arbitrarily select the superdiagonal entries and drop the subdiagonal entries. This choice affects the sparsity pattern of $\nabla_{\dddot{H}} \rho$ in section \ref{subsec:derivation_stable_adjoint_system}. Any other convex linear combination of each pair would also be valid.} This allows us to theoretically define \textbf{augmented Bidiagonalization} as $$\overline{\texttt{Bidiagonalize}}_K := \texttt{extract} \circ \texttt{Hessenberg}_{2K} \circ \texttt{augment} : (A, v) \mapsto (L, R, B, r, c)$$ which is functionally equivalent to standard Bidiagonalization but inherits the numerical stability properties of Hessenberg factorization's adjoint system. 
 \\
 The problem is that this is "computing a lot of zeros". We will show that we can prune the computational graph to minimize work.
 
 \section{Adjoint systems}
 
 \subsection{Adjoint system of Hessenberg Factorization}\label{subsec:adjoint_hessenberg}
-Let $K \in \mathbb{N}_+$, $A \in \mathbb{R}^{N\times N}$, $v \in \mathbb{R}^N$, $H \in \mathbb{R}^{K\times K}$, $Q \in \mathbb{R}^{N\times K}$, $r \in \mathbb{R}^N$, $c \in \mathbb{R}$ satisfy the primal constraints \eqref{eq:hessenberg_forward_constraint1} through \eqref{eq:hessenberg_forward_constraint5}. Let adjoint variables $\Lambda \in \mathbb{R}^{N\times K}$ with $\Lambda e_i = \lambda_i$, $\Gamma \in \mathbb{R}^{K\times K}$, $\lambda \in \mathbb{R}^N$, $\gamma \in \mathbb{R}^K$ solve the following system of equations:
+Let $K \in \mathbb{N}_+$, $A \in \mathbb{R}^{N\times N}$, $v \in \mathbb{R}^N$, $H \in \mathbb{R}^{K\times K}$, $Q \in \mathbb{R}^{N\times K}$, $r \in \mathbb{R}^N$, $c \in \mathbb{R}$ satisfy the primal constraints \eqref{eq:hessenberg_forward_constraint1} through \eqref{eq:hessenberg_forward_constraint5}. Let adjoint variables $\Lambda \in \mathbb{R}^{N\times K}$ with $\Lambda e_i = \lambda_i$, $\Gamma \in \mathbb{R}^{K\times K}$, $\lambda_0 \in \mathbb{R}^N$, $\gamma \in \mathbb{R}^K$ solve the following system of equations:
 \begin{align}
-0 &= \nabla_{Q} \rho + A^\top \Lambda - \Lambda H^\top + \lambda (e_{1})^\top 
+0 &= \nabla_{Q} \rho + A^\top \Lambda - \Lambda H^\top + \lambda_0 (e_{1})^\top 
    + Q(I_{\leq} \circ \Gamma) + Q(I_{\leq} \circ \Gamma)^\top + r \gamma^\top \label{eq:adjoint_hessenberg_constraint1}\\ 
 0 &= \nabla_{H} \rho - Q^\top \Lambda + I_{\ll} \circ \Sigma \label{eq:adjoint_hessenberg_constraint2}\\
 0 &= \nabla_{r} \rho - \Lambda e_{K} + Q \gamma \label{eq:adjoint_hessenberg_constraint3}\\
-0 &= \nabla_{c} \rho - v^\top \lambda \label{eq:adjoint_hessenberg_constraint4}
+0 &= \nabla_{c} \rho - v^\top \lambda_0 \label{eq:adjoint_hessenberg_constraint4}
 \end{align}
-The gradients $\nabla_A\rho$ and $\nabla_v\rho$ are then given by\footnote{note a sign difference between \eqref{eq:adjoint_hessenberg_constraint6} and the result in TODO CITE due to a typo}:
+The gradients $\nabla_A\rho$ and $\nabla_v\rho$ are then given by\footnote{note a sign difference between \eqref{eq:adjoint_hessenberg_constraint6} and the result in (TODO CITE) due to a typo}:
 \begin{align}
     \nabla_A\rho &= \Lambda Q^\top \label{eq:adjoint_hessenberg_constraint5} \\
-    \nabla_v\rho &= -c\lambda \label{eq:adjoint_hessenberg_constraint6}
+    \nabla_v\rho &= -c\lambda_0 \label{eq:adjoint_hessenberg_constraint6}
 \end{align}
 
 
@@ -229,21 +245,21 @@ Next, we will get expressions for the remaining columns of $\Lambda$ and $\Gamma
 \end{align}
 We now turn to adjoint system constraint \eqref{eq:adjoint_hessenberg_constraint1}, left-multiply $Q^\top$ and then apply a mask to consider only the upper triangular part of the equations:
 \begin{align*}
-    \eqref{eq:adjoint_hessenberg_constraint1} &\overset{\eqref{eq:hessenberg_forward_constraint3}, \eqref{eq:hessenberg_forward_constraint5}}{\implies} \empty & \mathbf{0} &= Q^\top \nabla_{Q} \rho + Q^\top A^\top \Lambda - Q^\top \Lambda H^\top + Q^\top \lambda (e_{1})^\top + \Gamma + \Gamma^\top
+    \eqref{eq:adjoint_hessenberg_constraint1} &\overset{\eqref{eq:hessenberg_forward_constraint3}, \eqref{eq:hessenberg_forward_constraint5}}{\implies} \empty & \mathbf{0} &= Q^\top \nabla_{Q} \rho + Q^\top A^\top \Lambda - Q^\top \Lambda H^\top + Q^\top \lambda_0 (e_{1})^\top + \Gamma + \Gamma^\top
     \\
-    \empty &\;\implies\; \empty & \mathbf{0} &= I_\geq \circ \bigg[Q^\top \nabla_{Q} \rho + Q^\top A^\top \Lambda - Q^\top \Lambda H^\top + Q^\top \lambda (e_{1})^\top + \Gamma + \Gamma^\top\bigg]
+    \empty &\;\implies\; \empty & \mathbf{0} &= I_\geq \circ \bigg[Q^\top \nabla_{Q} \rho + Q^\top A^\top \Lambda - Q^\top \Lambda H^\top + Q^\top \lambda_0 (e_{1})^\top + \Gamma + \Gamma^\top\bigg]
     \\
-    \empty & \empty & &= I_\geq \circ \bigg[Q^\top \nabla_{Q} \rho + Q^\top A^\top \Lambda - Q^\top \Lambda H^\top + Q^\top \lambda (e_{1})^\top\bigg] + \text{diag}(\Gamma) + \Gamma^\top
+    \empty & \empty & &= I_\geq \circ \bigg[Q^\top \nabla_{Q} \rho + Q^\top A^\top \Lambda - Q^\top \Lambda H^\top + Q^\top \lambda_0 (e_{1})^\top\bigg] + \text{diag}(\Gamma) + \Gamma^\top
 \end{align*}
 We now inspect column $i$ in this matrix equation. We will use sparsity of $H$ to rewrite the matrix product $Q^\top \Lambda H^\top$, and we will apply some simplifications with the mask $I_\geq$:
 \begin{align}
-    \mathbf{0} &= \left(I_\geq \circ \bigg[Q^\top \nabla_{Q} \rho + Q^\top A^\top \Lambda - Q^\top \Lambda H^\top + Q^\top \lambda (e_{1})^\top\bigg]\right)e_i + \left(\text{diag}(\Gamma) + \Gamma^\top\right) e_i \nonumber
+    \mathbf{0} &= \left(I_\geq \circ \bigg[Q^\top \nabla_{Q} \rho + Q^\top A^\top \Lambda - Q^\top \Lambda H^\top + Q^\top \lambda_0 (e_{1})^\top\bigg]\right)e_i + \left(\text{diag}(\Gamma) + \Gamma^\top\right) e_i \nonumber
     \\
-    &= I_\geq e_i \circ \bigg[Q^\top \nabla_{q_i} \rho + Q^\top A^\top \lambda_i - Q^\top \Lambda H^\top e_i + Q^\top \lambda (e_{1})^\top e_i\bigg] + \text{diag}(\Gamma)e_i + \Gamma^\top e_i \nonumber
+    &= I_\geq e_i \circ \bigg[Q^\top \nabla_{q_i} \rho + Q^\top A^\top \lambda_i - Q^\top \Lambda H^\top e_i + Q^\top \lambda_0 (e_{1})^\top e_i\bigg] + \text{diag}(\Gamma)e_i + \Gamma^\top e_i \nonumber
     \\
-    &= I_\geq e_i \circ \bigg[Q^\top \nabla_{q_i} \rho + Q^\top A^\top \lambda_i - Q^\top \left(\sum_{j=i-1}^{K} \lambda_j h_{ij}\right)\bigg] +(I_\geq e_i) \circ Q^\top \lambda \delta_{i=1} + \Gamma_{ii}e_i + \Gamma^\top e_i \nonumber
+    &= I_\geq e_i \circ \bigg[Q^\top \nabla_{q_i} \rho + Q^\top A^\top \lambda_i - Q^\top \left(\sum_{j=i-1}^{K} \lambda_j h_{ij}\right)\bigg] +(I_\geq e_i) \circ Q^\top \lambda_0 \delta_{i=1} + \Gamma_{ii}e_i + \Gamma^\top e_i \nonumber
     \\
-    &= I_\geq e_i \circ \bigg[Q^\top \nabla_{q_i} \rho + Q^\top A^\top \lambda_i - \sum_{j=i-1}^{K} h_{ij}Q^\top\lambda_j\bigg] + e_1q_1^\top \lambda \delta_{i=1} + \Gamma_{ii}e_i + \Gamma^\top e_i \nonumber
+    &= I_\geq e_i \circ \bigg[Q^\top \nabla_{q_i} \rho + Q^\top A^\top \lambda_i - \sum_{j=i-1}^{K} h_{ij}Q^\top\lambda_j\bigg] + e_1q_1^\top \lambda_0 \delta_{i=1} + \Gamma_{ii}e_i + \Gamma^\top e_i \nonumber
     \\
     &\!\overset{\eqref{eq:get_q1_top_lambda}}{=} I_\geq e_i \circ \bigg[Q^\top \nabla_{q_i} \rho + Q^\top A^\top \lambda_i\bigg] - I_\geq e_i \circ \left(\sum_{j=i-1}^{K} h_{ij}Q^\top\lambda_j\right) + e_1c\nabla_{c} \rho \delta_{i=1} + \Gamma_{ii}e_i + \Gamma^\top e_i \nonumber
     \\
@@ -266,13 +282,13 @@ We plug this into \eqref{eq:term_round_parentheses}, which then yields an expres
 \\
 Finally, to solve for $\lambda_i$ and $\lambda$, we look again at \eqref{eq:adjoint_hessenberg_constraint1} and restrict to column $i$:
 \begin{align}
-    \eqref{eq:adjoint_hessenberg_constraint1} \implies & \empty & \!\!0 &\!= \!\nabla_{\!q_i} \rho + A^\top \!\lambda_i - \!\Lambda H^{\!\top}\!e_i + \lambda \delta_{i=1} 
+    \eqref{eq:adjoint_hessenberg_constraint1} \implies & \empty & \!\!0 &\!= \!\nabla_{\!q_i} \rho + A^\top \!\lambda_i - \!\Lambda H^{\!\top}\!e_i + \lambda_0 \delta_{i=1} 
     + Q\Gamma e_i + Q\Gamma^\top e_i + r \gamma^\top e_i \nonumber
     \\
-    &\empty &\empty &\!= \!\nabla_{q_i} \rho + A^\top \lambda_i - \!\sum_{j=i-1}^{K} h_{ij} \lambda_j + \lambda \delta_{i=1} + Q(\Gamma + \Gamma^\top)e_i + r \gamma^\top e_i \nonumber
+    &\empty &\empty &\!= \!\nabla_{q_i} \rho + A^\top \lambda_i - \!\sum_{j=i-1}^{K} h_{ij} \lambda_j + \lambda_0 \delta_{i=1} + Q(\Gamma + \Gamma^\top)e_i + r \gamma^\top e_i \nonumber
     \\
     \iff&  & \!\!\!\!\!\begin{array}{cc}
-        - \lambda & \!\!i = 1 \\
+        - \lambda_0 & \!\!i = 1 \\
       h_{i, i\!-\!1} \lambda_{i\!-\!1} & \!\!i > 1
    \end{array}\!\!\bigg\} &\!= \!\nabla_{q_i} \rho + A^\top \lambda_i - \!\sum_{j=i}^{K} h_{ij} \lambda_j + Q(\Gamma + \Gamma^\top)e_i + r \gamma^\top e_i \label{eq:get_lambda_i}
 \end{align}
@@ -376,61 +392,71 @@ The sparsity patterns of $\nabla_{\dddot{Q}} \rho$, $\nabla_{\dddot{H}} \rho$, a
 \end{align}
 We will look at the constraints \eqref{eq:adjoint_hessenberg_constraint1} through \eqref{eq:adjoint_hessenberg_constraint4} and determine further sparsity patterns in the adjoint variables $\Lambda, \Gamma, \lambda, \gamma$. We will mark possibly nonzero entries with $*$, and constant zero entries with a $0$.
 \\
-\subsubsection{Inspecting $\gamma$ and $\lambda_{2K}$}
-Starting from \eqref{eq:get_gamma}, replacing $K$ with $2K$, we plug in our sparse gradients and outputs, and show that, for this input, $\gamma \in \mathbb{R}^{2K}$ is alternatingly non-zero and zero.
+\subsection{Inspecting the sparsity patterns of $\gamma$ and $\lambda_{2K}$}
+Starting from \eqref{eq:get_gamma}, replacing $K$ with $2K$, we plug in our sparse gradients and sparse outputs:
 \begin{align}
     \eqref{eq:get_gamma} \implies \gamma &= \nabla_{\dddot{H}} \rho e_{2K} - \dddot{Q}^\top \nabla_{\dddot{r}} \rho = \nabla_{\alpha_{K}} \rho e_{2K-1} - \dddot{Q}^\top \begin{pmatrix}\mathbf{0} \\ \nabla_r\rho\end{pmatrix} 
     \\
-    &= \begin{pmatrix}0 \\ 0 \\ 0 \\ 0 \\ \vdots \\ 0 \\ \nabla_{\alpha_K} \rho \\ 0\end{pmatrix}  - \begin{pmatrix}r_1^\top \\ \mathbf{0}^\top \\ r_2^\top \\ \mathbf{0}^\top \\ \vdots \\\mathbf{0}^\top\\ r_K^\top \\ \mathbf{0}^\top\end{pmatrix} \nabla_{r} \rho \equiv \begin{pmatrix}* \\ 0 \\ * \\ 0 \\ \vdots \\ 0 \\ * \\ 0\end{pmatrix} \label{eq:gamma_sparsity_pattern}
+    &= \begin{pmatrix}0 \\ 0 \\ 0 \\ 0 \\ \vdots \\ 0 \\ \nabla_{\alpha_K} \rho \\ 0\end{pmatrix}  - \begin{pmatrix}r_1^\top \\ \mathbf{0}^\top \\ r_2^\top \\ \mathbf{0}^\top \\ \vdots \\\mathbf{0}^\top\\ r_K^\top \\ \mathbf{0}^\top\end{pmatrix} \nabla_{r} \rho \preceq \begin{pmatrix}* \\ 0 \\ * \\ 0 \\ \vdots \\ 0 \\ * \\ 0\end{pmatrix} \label{eq:gamma_sparsity_pattern}
 \end{align}
-We plug this pattern into \eqref{eq:get_last_lambda}, which shows that $\lambda_{2K}$ has the same sparsity pattern as $\dddot{v}$:
+This shows that $\gamma \in \mathbb{R}^{2K}$ is alternatingly non-zero and zero, meaning it is at most $K$-dimensional. We plug this pattern into \eqref{eq:get_last_lambda}:
 \begin{align}
     \eqref{eq:get_last_lambda} \implies \lambda_{2K} &= \nabla_{\dddot{r}} \rho + \dddot{Q} \gamma
-    \equiv \begin{pmatrix}\mathbf{0} \\ \nabla_r\rho\end{pmatrix}  + \dddot{Q} \begin{pmatrix}* \\ 0 \\ * \\ 0 \\ \vdots \\ 0\\ * \\ 0\end{pmatrix}
-    \equiv \begin{pmatrix}0 \\ 0 \\ \vdots \\ 0 \\ * \\ * \\ \vdots \\ *\end{pmatrix} + \begin{pmatrix}0 \\ 0 \\ \vdots \\ 0 \\ * \\ * \\ \vdots \\ *\end{pmatrix}
-    \equiv \begin{pmatrix}0 \\ 0 \\ \vdots \\ 0 \\ * \\ * \\ \vdots \\ *\end{pmatrix} \label{eq:lambda_2K_sparsity_pattern}
+    \preceq \begin{pmatrix}0 \\ 0 \\ \vdots \\ 0 \\ * \\ * \\ \vdots \\ *\end{pmatrix} + \dddot{Q} \begin{pmatrix}* \\ 0 \\ * \\ 0 \\ \vdots \\ 0\\ * \\ 0\end{pmatrix}
+    = \begin{pmatrix}0 \\ 0 \\ \vdots \\ 0 \\ * \\ * \\ \vdots \\ *\end{pmatrix} \label{eq:lambda_2K_sparsity_pattern}
 \end{align}
-\subsubsection{Inspecting $\Gamma^\top$ and $\Lambda$}
-We move onto equation \eqref{eq:get_Gamma_i} for columns of $\Gamma^\top$:
+This shows that $\lambda_{2K} \in \mathbb{R}^{N+M}$ is $0$ in the leading $N$ entries, which also held true for the input vector $\dddot{v}$.
+\subsection{Inspecting the sparsity pattern of $\Gamma^\top$}
+We move onto equation \eqref{eq:get_Gamma_i} for columns of $\Gamma^\top$. We group it into four terms (I) - (IV) and analyze them separately, recombining at the end.
 \begin{align}
-    \Gamma_{ii}e_i + \Gamma^\top e_i = - I_\geq e_i \circ \bigg[\dddot{Q}^\top \nabla_{\dddot{q_i}} \rho + \dddot{Q}^\top \dddot{A}^\top \lambda_i\bigg] + \left(\sum_{j=i-1}^{K} h_{ij} I_\geq e_i \circ \nabla_{\dddot{H}} \rho e_j\right) - e_1c\nabla_{c} \rho \delta_{i=1}
+    \Gamma_{ii}e_i + \Gamma^\top e_i &= - I_\geq e_i \circ \bigg[\underbrace{\dddot{Q}^\top \nabla_{\dddot{q_i}} \rho}_{(\text{I})} + \underbrace{\dddot{Q}^\top \dddot{A}^\top \lambda_i}_{(\text{II})}\bigg] + \left(\underbrace{\sum_{j=i-1}^{K} h_{ij} I_\geq e_i \circ \nabla_{\dddot{H}} \rho e_j}_{(\text{III})}\right) - \underbrace{e_1c\nabla_{c} \rho \delta_{i=1}}_{(\text{IV})}
 \end{align}
-By expanding the sparsity patterns of known variables $\dddot{Q}$, $\dddot{A}$, $\nabla_{\dddot{q_i}} \rho$, and $\nabla_{\dddot{H}} \rho$, this will simplify. Expanding one term at a time starting with $\dddot{Q}^\top \nabla_{\dddot{q_{i}}} \rho$ using \eqref{eq:Q_sparsity_pattern} and \eqref{eq:nabla_Q_sparsity_pattern}, we get, for even $i$:
-\begin{align}
-    \dddot{Q}^\top \nabla_{\dddot{q_{i}}} \rho = 
+We will expand the sparsity patterns of known variables $\dddot{Q}$, $\dddot{A}$, $\nabla_{\dddot{q_i}} \rho$, and $\nabla_{\dddot{H}} \rho$, this will simplify.
+\subsubsection{Term (I)}
+$$(\text{I}) := \dddot{Q}^\top \nabla_{\dddot{q_{i}}} \rho$$
+Using substitutions \eqref{eq:Q_sparsity_pattern} and \eqref{eq:nabla_Q_sparsity_pattern}, for even $i$:
+\begin{align*}
+    \dddot{Q}^\top \nabla_{\dddot{q_{i}}} \rho &= 
     \begin{bmatrix}\mathbf{0} & l_1 & \mathbf{0} & l_2 & \cdots & \mathbf{0} & l_k \\ r_1 & \mathbf{0} & r_2 & \mathbf{0} &  \cdots & r_k & \mathbf{0} \end{bmatrix} ^\top \begin{bmatrix} \nabla_{l_i} \rho \\ \mathbf{0} \end{bmatrix} = 
     \begin{bmatrix} 0 & l_1^\top \nabla_{l_i} \rho & 0 & l_2^\top \nabla_{l_i} \rho & \cdots & 0 & l_k^\top \nabla_{l_i} \rho\end{bmatrix} ^\top
-\end{align}
-For odd $i$, we get 
-\begin{align}
-    \dddot{Q}^\top \nabla_{\dddot{q_{i}}} \rho = 
+    \\
+    &\preceq \begin{bmatrix} 0 & * & 0 & * & \cdots & 0 & * \end{bmatrix}
+\end{align*}
+For odd $i$: 
+\begin{align*}
+    \dddot{Q}^\top \nabla_{\dddot{q_{i}}} \rho &= 
     \begin{bmatrix}\mathbf{0} & l_1 & \mathbf{0} & l_2 & \cdots & \mathbf{0} & l_k \\ r_1 & \mathbf{0} & r_2 & \mathbf{0} &  \cdots & r_k & \mathbf{0} \end{bmatrix} ^\top \begin{bmatrix} \mathbf{0} \\ \nabla_{r_i} \rho \end{bmatrix} =
     \begin{bmatrix} r_1^\top \nabla_{r_i} \rho & 0 & r_2^\top \nabla_{r_i} \rho & 0 & \cdots & r_k^\top \nabla_{r_i} \rho & 0\end{bmatrix} ^\top
-\end{align}
-Next term is $\dddot{Q}^\top \dddot{A}^\top \lambda_i$ using again \eqref{eq:Q_sparsity_pattern} and \eqref{eq:A_sparsity_pattern}. Assume that $\Lambda$ has the opposite sparsity pattern as $\dddot{Q}$. This lets us name the nonzero entries: 
+    \\
+    &\preceq \begin{bmatrix} * & 0 & * & 0 & \cdots & * & 0 \end{bmatrix}
+\end{align*}
+\subsubsection{Term (II)}
+$$(\text{II}) := \dddot{Q}^\top \dddot{A}^\top \lambda_i $$
+Using again substitution \eqref{eq:Q_sparsity_pattern} in addition to \eqref{eq:A_sparsity_pattern}. We will also make use of the induction hypothesis on the sparsity of $\lambda_i$.
+For even $i$:
 \begin{align}
-    \Lambda = \begin{bmatrix}\varphi_1 & \mathbf{0} & \varphi_2 & \mathbf{0} & \cdots &\varphi_k & \mathbf{0}\\ \mathbf{0} & \xi_1 & \mathbf{0} & \xi_2 &  \cdots  & \mathbf{0} & \xi_k \end{bmatrix} \in \mathbb{R}^{(N+M) \times 2K} \label{eq:Lambda_sparsity_pattern}
-\end{align}
-The proof of \eqref{eq:Lambda_sparsity_pattern} will follow from induction backwards from $i=2K$ to $i=1$, with the base case already shown in \eqref{eq:lambda_2K_sparsity_pattern}. First, for even $i$, we get:
-\begin{align}
-    \dddot{Q}^\top \dddot{A}^\top \lambda_i = 
+    \dddot{Q}^\top \dddot{A}^\top \lambda_i &= 
     \begin{bmatrix}\mathbf{0} & l_1 & \mathbf{0} & l_2 & \cdots & \mathbf{0} & l_k \\ r_1 & \mathbf{0} & r_2 & \mathbf{0} &  \cdots & r_k & \mathbf{0} \end{bmatrix} ^\top \begin{bmatrix} \mathbf{0} & A \\ A^\top & \mathbf{0} \end{bmatrix} \begin{bmatrix} \mathbf{0} \\ \xi_i \end{bmatrix} = 
     \begin{bmatrix} 0 & l_1^\top A\xi_i & 0 & l_2^\top A\xi_i  & \cdots & 0 & l_k^\top A\xi_i \end{bmatrix} ^\top
+    \\
+    &\preceq \begin{bmatrix} 0 & * & 0 & * & \cdots & 0 & * \end{bmatrix}
 \end{align}
 For odd $i$, we get:
 \begin{align}
-    \dddot{Q}^\top \dddot{A}^\top \lambda_i = 
+    \dddot{Q}^\top \dddot{A}^\top \lambda_i &= 
     \begin{bmatrix}\mathbf{0} & l_1 & \mathbf{0} & l_2 & \cdots & \mathbf{0} & l_k \\ r_1 & \mathbf{0} & r_2 & \mathbf{0} &  \cdots & r_k & \mathbf{0} \end{bmatrix} ^\top \begin{bmatrix} \mathbf{0} & A \\ A^\top & \mathbf{0} \end{bmatrix} \begin{bmatrix} \varphi_i \\ \mathbf{0} \end{bmatrix} = 
     \begin{bmatrix} r_1^\top A^\top \varphi_i & 0 & r_2^\top A^\top \varphi_i  & 0 & \cdots & r_k^\top A^\top \varphi_i & 0 \end{bmatrix} ^\top
-\end{align}
-Next term to dissect is $\sum_{j=i-1}^{K} h_{ij} I_\geq e_i \circ \nabla_{\dddot{H}} \rho e_j$. Here, we use the sparsity pattern of $\nabla_{\dddot{H}} \rho$ from \eqref{eq:nabla_H_sparsity_pattern}:
-\begin{align}
-    \text{for even $i$: }& &\nabla_{\dddot{H}} \rho e_i &= \nabla_{\alpha_{i/2}} \rho e_{i-1}
     \\
-\text{for odd $i$: } & & \nabla_{\dddot{H}} \rho e_i &= \nabla_{\beta_{(i-1)/2}} \rho e_{i-1}
+    &\preceq \begin{bmatrix} * & 0 & * & 0 & \cdots & * & 0 \end{bmatrix}
 \end{align}
-For this reason, all terms $I_\geq e_i \circ \nabla_{\dddot{H}} \rho e_j$ for $j \notin \{i-1, i, i+2\}$ are zero. Additionally, we know from \eqref{eq:H_sparsity_pattern} that $h_{ii} = 0$ for all $i$.
-Assuming now $i$ even, we get:
+\subsubsection{Term (III)}
+$$(\text{III}) := \sum_{j=i-1}^{K} h_{ij} I_\geq e_i \circ \nabla_{\dddot{H}} \rho e_j$$
+Here, we make use of the sparsity pattern of $\nabla_{\dddot{H}} \rho$ from \eqref{eq:nabla_H_sparsity_pattern}, which gives that, for even $i$,
+$$\nabla_{\dddot{H}} \rho e_i = \nabla_{\alpha_{i/2}} \rho e_{i-1}$$
+and for odd $i$, 
+$$\nabla_{\dddot{H}} \rho e_i = \nabla_{\beta_{(i-1)/2}} \rho e_{i-1}$$
+For this reason, all terms $I_\geq e_i \circ \nabla_{\dddot{H}} \rho e_j$ for $j \notin \{i-1, i, i+2\}$ are zero, so we can prune the sum. Additionally, we know from \eqref{eq:H_sparsity_pattern} that $h_{ii} = 0$ for all $i$.
+Assuming now $i$ even:
 \begin{align*}
     \sum_{j=i-1}^{K} h_{ij} I_\geq e_i \circ \nabla_{\dddot{H}} \rho e_j  
     &= 
@@ -439,99 +465,149 @@ Assuming now $i$ even, we get:
     \\ &= h_{i,i-1} \nabla_{\dddot{H}} \rho e_{i-1} + h_{i,i+1} \nabla_{\dddot{H}} \rho e_{i+1}
     \\ &= \alpha_{i/2} \nabla_{\dddot{H}} \rho e_{i-1} + \beta_{i/2} \nabla_{\dddot{H}} \rho e_{i+1}
     \\ &= \alpha_{i/2} \nabla_{\beta_{i/2 - 1}}\rho e_{i-2} + \beta_{i/2} \nabla_{\beta_{i/2}}\rho e_{i}
+    \\ &\preceq * \cdot e_{i-2} + * \cdot e_{i}
 \end{align*}
-For odd $i$, with a similar argument we get:
+With a similar argument, for odd $i$:
 \begin{align*}
     \sum_{j=i-1}^{K} h_{ij} I_\geq e_i \circ \nabla_{\dddot{H}} \rho e_j  
     &= h_{i,i-1} \nabla_{\dddot{H}} \rho e_{i-1} + h_{i,i+1} \nabla_{\dddot{H}} \rho e_{i+1}
     \\ &= \beta_{(i-1)/2} \nabla_{\dddot{H}} \rho e_{i-1} + \alpha_{(i+1)/2} \nabla_{\dddot{H}} \rho e_{i+1}
     \\ &= \beta_{(i-1)/2} \nabla_{\alpha_{(i-1)/2 - 1}}\rho e_{i-2} + \alpha_{(i+1)/2} \nabla_{\alpha_{(i+1)/2}}\rho e_{i}
+    \\ &\preceq * \cdot e_{i-2} + * \cdot e_{i}
 \end{align*}
-Bringing it all together back into \eqref{eq:get_Gamma_i}, for even $i$, we get:
+\subsubsection{Term (IV)}
+$$(\text{IV}) := e_1c\nabla_{c} \rho \delta_{i=1}$$
+For even $i$, $\delta_{i=1} = 0$, and $$e_1c\nabla_{c} \rho \delta_{i=1} = \mathbf{0}$$
+For odd $i$, 
+$$e_1c\nabla_{c} \rho \delta_{i=1} \preceq * \cdot e_1$$
+\subsubsection{Combining Terms (I) - (IV)}
+Bringing it all together back into \eqref{eq:get_Gamma_i}, for even $i$:
+\begin{align*} 
+\Gamma_{ii}e_i + \Gamma^\top e_i &= -I_{\geq}e_i \circ \Big[\text{(I)} + \text{(II)}\Big] + \text{(III)}
+\\
+\iff \Gamma^\top e_i &= -I_{\geq}e_i \circ \Big[\text{(I)} + \text{(II)}\Big] + \text{(III)} - \Gamma_{ii}e_i 
+\\
+&\preceq I_{\geq}e_i \circ \Big[\begin{bmatrix} 0 \!& * \!& 0 \!& * \!& \cdots \!& 0 \!& *\end{bmatrix} ^\top + \begin{bmatrix} 0 \!& * \!& 0 \!& *  \!& \cdots \!& 0 \!& * \end{bmatrix} ^\top \Big]
+    + * \cdot e_{i-2} + *\cdot e_{i}
+    \\
+    &= I_{\geq}e_i \circ \begin{bmatrix} 0 & * & 0 & * & \cdots & 0 & *\end{bmatrix} ^\top
+\end{align*}
+As can be seen, even columns of $\Gamma^\top$ are exactly zero in the odd entries. For odd $i$:
+\begin{align*} 
+\Gamma_{ii}e_i + \Gamma^\top e_i &= -I_{\geq}e_i \circ \Big[\text{(I)} + \text{(II)}\Big] + \text{(III)} - \text{(IV)}
+\\
+\iff \Gamma^\top e_i &= -I_{\geq}e_i \circ \Big[\text{(I)} + \text{(II)}\Big] + \text{(III)} - \text{(IV)} - \Gamma_{ii}e_i 
+\\
+&\preceq I_{\geq}e_i \circ \Big[\begin{bmatrix} * \!& 0 \!& * \!& 0 \!& \cdots \!& * \!& 0\end{bmatrix} ^\top + \begin{bmatrix} * \!& 0 \!& * \!& 0 \!& \cdots \!& * \!& 0\end{bmatrix} ^\top \Big]
+    + * \cdot e_{i-2} + *\cdot e_{i} - *\cdot e_{i}
+    \\
+    &= I_{\geq}e_i \circ \begin{bmatrix} * & 0 & * & 0 & \cdots & * & 0\end{bmatrix} 
+\end{align*}
+In this case, the the odd columns are exactly zero for the even entries. Together, these imply that $\Gamma^\top$ is upper triangular and has a checkered sparsity pattern with a zero in the upper right.
+
 \begin{align}
-    \Gamma_{ii}e_i + \Gamma^\top e_i &= -I_{\geq}e_i \circ \Big[\begin{bmatrix} 0 & l_1^\top \nabla_{l_i} \rho & 0 & l_2^\top \nabla_{l_i} \rho & \cdots & 0 & l_k^\top \nabla_{l_i} \rho\end{bmatrix} ^\top  \nonumber
+    \text{for even $i$: } & & \Gamma^\top e_i &\preceq \begin{bmatrix} 0 & * & 0 & * &  \cdots & * & 0 & *\end{bmatrix} ^\top
     \\
-    &+ \begin{bmatrix} 0 & l_1^\top A\xi_i & 0 & l_2^\top A\xi_i  & \cdots & 0 & l_k^\top A\xi_i \end{bmatrix} ^\top \Big] \nonumber
-    \\ 
-    &+ \alpha_{i/2} \nabla_{\beta_{i/2 - 1}}\rho e_{i-2} + \beta_{i/2} \nabla_{\beta_{i/2}}\rho e_{i} \nonumber
-    \\
-    &\equiv \begin{bmatrix} 0 & * & 0 & * & \cdots & 0 & *\end{bmatrix} ^\top
+    \text{for odd $i$: } & & \Gamma^\top e_i &\preceq \begin{bmatrix} * & 0 & * & 0 &  \cdots & 0 & * & 0\end{bmatrix} ^\top
 \end{align}
-As can be seen, it is exactly zero in the odd entries. For odd $i$, we have that it is exactly zero for the even entries:
-\begin{align}
-    \Gamma_{ii}e_i + \Gamma^\top e_i &= -I_{\geq}e_i \circ \Big[\begin{bmatrix} r_1^\top \nabla_{r_i} \rho & 0 & r_2^\top \nabla_{r_i} \rho & 0 & \cdots & r_k^\top \nabla_{r_i} \rho & 0\end{bmatrix} ^\top  \nonumber
-    \\
-    &+ \begin{bmatrix} r_1^\top A^\top \varphi_i & 0 & r_2^\top A^\top \varphi_i & 0 & \cdots & r_k^\top A^\top \varphi_i & 0\end{bmatrix} ^\top \Big] 
-    \\ &+ \beta_{(i-1)/2} \nabla_{\alpha_{(i-1)/2 - 1}}\rho e_{i-2} + \alpha_{(i+1)/2} \nabla_{\alpha_{(i+1)/2}}\rho e_{i} \nonumber
-    \\
-    &- e_1c\nabla_{c} \rho \delta_{i=1} \nonumber
-    \\
-    &\equiv \begin{bmatrix} * & 0 & * & 0 & \cdots & * & 0\end{bmatrix} ^\top
-\end{align}
-Together, these imply that $\Gamma$ has a checkered sparsity pattern. In the analysis above we skipped the fact that $\Gamma$ is additionally lower triangular, meaning that the checkered pattern is only in the lower triangle.
+
 \subsection{Proof by Induction for the sparsity pattern of $\Lambda$}
 This will be our induction hypothesis:
 \begin{align}
-    \text{for even $i$: } & & \lambda_i &\equiv \begin{bmatrix} 0 & 0 & \cdots & 0 & * & * & \cdots & *\end{bmatrix} ^\top
+    \text{for even $i$: } & & \lambda_i &\preceq \begin{bmatrix} 0 & 0 & \cdots & 0 & * & * & \cdots & *\end{bmatrix} ^\top
     \\
-    \text{for odd $i$: } & & \lambda_i &\equiv \begin{bmatrix} * & * & \cdots &  * & 0 & 0 &\cdots & 0\end{bmatrix} ^\top 
+    \text{for odd $i$: } & & \lambda_i &\preceq \begin{bmatrix} * & * & \cdots &  * & 0 & 0 &\cdots & 0\end{bmatrix} ^\top 
 \end{align}
 We will do strong induction backwards, starting from $i=2K$ down to $i=1$, by assuming that it holds for the current and all preceding iterations $j \in \{i, i+1, \dots, 2K\}$. The base case $i = 2K$ is already proven for even $i=2K$ in \eqref{eq:lambda_2K_sparsity_pattern}. Assuming now that the hypothesis is true for some even iteration $i$ (and all earlier iterations) we will show that it holds for the preceding $i-1$ which is odd. To close the loop, we prove that, when it holds for an odd $i$ and earlier, it will hold for the preceding $i-1$, which is even.
 \\
-For this, we consider \eqref{eq:get_lambda_i} and plug in the sparse output of $\overline{\texttt{Bidiagonalize}}_{2K}$. We also underline the five main terms with roman numerals (I) - (V), which we will investigate one by one, for even and odd $i$.
+For this, we consider \eqref{eq:get_lambda_i} and plug in the sparse output of $\overline{\texttt{Bidiagonalize}}_{2K}$. We again underline the main terms with roman numerals (I) - (V), which we will investigate one by one, for even and odd $i$.
 \begin{align}
     \!\!\!\!\!\begin{array}{cc}
-        - \lambda & \!\!i = 1 \\
+        - \lambda_0 & \!\!i = 1 \\
       h_{i, i\!-\!1} \lambda_{i\!-\!1} & \!\!i > 1
-   \end{array}\!\!\bigg\} &\!= \!\underbrace{\nabla_{\dddot{q_i}} \rho}_{(\text{I})} + \underbrace{\dddot{A}^\top \lambda_i}_{(\text{II})} - \underbrace{\!\sum_{j=i}^{K} h_{ij} \lambda_j}_{(\text{III})} + \underbrace{\dddot{Q}(\Gamma + \Gamma^\top)e_i}_{(\text{IV})} + \underbrace{\dddot{r} \gamma^\top e_i}_{(\text{V})}
+   \end{array}\!\!\bigg\} &\!= \!\underbrace{\nabla_{\dddot{q_i}} \rho}_{(\text{I})} + \underbrace{\dddot{A}^\top \lambda_i}_{(\text{II})} - \underbrace{\!\sum_{j=i}^{K} h_{ij} \lambda_j}_{(\text{III})} + \underbrace{\dddot{Q}(\Gamma + \Gamma^\top)e_i}_{(\text{IV})} + \underbrace{\dddot{r} \gamma^\top e_i}_{(\text{V})} \label{eq:sparse_get_lambda_i}
 \end{align}
 We are interested in the sparsity pattern of the right-hand side, as this directly tells us about the sparsity on the left-hand side. Note that the $\lambda$s on the LHS are indexed with $i-1$ and not $i$, which is a possible point of confusion.
 \subsubsection{Term (I)}
-By the sparsity pattern of $\nabla_\dddot{Q} \rho$ in \eqref{eq:nabla_Q_sparsity_pattern}, we immediately have 
+By the sparsity pattern of $\nabla_\dddot{Q} \rho$ in \eqref{eq:nabla_Q_sparsity_pattern}, we directly have 
 \begin{align}
-    \text{for even $i$: } & & \nabla_{\dddot{q_i}} &\equiv \begin{bmatrix} * & * & \cdots &  * & 0 & 0 &\cdots & 0\end{bmatrix} ^\top 
+    \text{for even $i$: } & & \nabla_{\dddot{q_i}} &\preceq \begin{bmatrix} * & * & \cdots &  * & 0 & 0 &\cdots & 0\end{bmatrix} ^\top 
     \\
-    \text{for odd $i$: } & & \nabla_{\dddot{q_i}} &\equiv \begin{bmatrix} 0 & 0 & \cdots & 0 & * & * & \cdots & *\end{bmatrix} ^\top
+    \text{for odd $i$: } & & \nabla_{\dddot{q_i}} &\preceq \begin{bmatrix} 0 & 0 & \cdots & 0 & * & * & \cdots & *\end{bmatrix} ^\top
 \end{align}
 \subsubsection{Term (II)}
 For even $i$, using the induction hypothesis:
 \begin{align}
-    \dddot{A}^\top \lambda_i = \begin{bmatrix} \mathbf{0} & A \\ A^\top & \mathbf{0} \end{bmatrix} \lambda_i &\equiv \begin{bmatrix} \mathbf{0} & A \\ A^\top & \mathbf{0} \end{bmatrix} \begin{bmatrix} 0 & 0 & \cdots & 0 & * & * & \cdots & *\end{bmatrix} ^\top 
+    \dddot{A}^\top \lambda_i = \begin{bmatrix} \mathbf{0} & A \\ A^\top & \mathbf{0} \end{bmatrix} \lambda_i &\preceq \begin{bmatrix} \mathbf{0} & A \\ A^\top & \mathbf{0} \end{bmatrix} \begin{bmatrix} 0 & 0 & \cdots & 0 & * & * & \cdots & *\end{bmatrix} ^\top 
     \\
-    &\equiv \begin{bmatrix} * & * & \cdots &  * & 0 & 0 &\cdots & 0\end{bmatrix} ^\top
+    &= \begin{bmatrix} * & * & \cdots &  * & 0 & 0 &\cdots & 0\end{bmatrix} ^\top
 \end{align}
 For odd $i$, using the induction hypothesis:
 \begin{align}
-    \dddot{A}^\top \lambda_i = \begin{bmatrix} \mathbf{0} & A \\ A^\top & \mathbf{0} \end{bmatrix} \lambda_i &\equiv \begin{bmatrix} \mathbf{0} & A \\ A^\top & \mathbf{0} \end{bmatrix} \begin{bmatrix} * & * & \cdots &  * & 0 & 0 &\cdots & 0\end{bmatrix} ^\top
+    \dddot{A}^\top \lambda_i = \begin{bmatrix} \mathbf{0} & A \\ A^\top & \mathbf{0} \end{bmatrix} \lambda_i &\preceq \begin{bmatrix} \mathbf{0} & A \\ A^\top & \mathbf{0} \end{bmatrix} \begin{bmatrix} * & * & \cdots &  * & 0 & 0 &\cdots & 0\end{bmatrix} ^\top
     \\
-    &\equiv \begin{bmatrix} 0 & 0 & \cdots & 0 & * & * & \cdots & *\end{bmatrix} ^\top 
+    &= \begin{bmatrix} 0 & 0 & \cdots & 0 & * & * & \cdots & *\end{bmatrix} ^\top 
 \end{align} 
 \subsubsection{Term (III)}
 From the sparsity of $\dddot{H}$ shown in \eqref{eq:H_sparsity_pattern}, we can simplify this sum severely (all but one $h_{ij} = 0$), and use the assumption that the induction hypothesis holds also the earlier odd $i+1$. For even $i$: 
 \begin{align}
-    \sum_{j=i}^{K} h_{ij} \lambda_j =  h_{i,i+1} \lambda_{i+1} \equiv  \begin{bmatrix} * & * & \cdots &  * & 0 & 0 &\cdots & 0\end{bmatrix} ^\top
+    \sum_{j=i}^{K} h_{ij} \lambda_j =  h_{i,i+1} \lambda_{i+1} \preceq  \begin{bmatrix} * & * & \cdots &  * & 0 & 0 &\cdots & 0\end{bmatrix} ^\top
 \end{align}
 For odd $i$: 
 \begin{align}
-    \sum_{j=i}^{K} h_{ij} \lambda_j =  h_{i,i+1} \lambda_{i+1} \equiv  \begin{bmatrix} 0 & 0 & \cdots &  0 & * & * &\cdots & *\end{bmatrix} ^\top
+    \sum_{j=i}^{K} h_{ij} \lambda_j =  h_{i,i+1} \lambda_{i+1} \preceq  \begin{bmatrix} 0 & 0 & \cdots &  0 & * & * &\cdots & *\end{bmatrix} ^\top
 \end{align}
 \subsubsection{Term (IV)}
-TODO CONTINUE HERE
-Next we can simplify the term $\dddot{Q}(\Gamma + \Gamma^\top)e_i$. From the sparsity of $\dddot{Q}$ shown in \eqref{eq:Q_sparsity_pattern}, and the further sparsity of $\Gamma$ shown previously which we are actually jointly proving inductively (TODO CLARIFY / CLEAN UP ARGUMENT AND REFERENCE EQUATION), we get:
+From the sparsity of $\dddot{Q}$ shown in \eqref{eq:Q_sparsity_pattern}, and using the induction hypothesis over sparsity of columns of $\Gamma + \Gamma^\top$, we get, for even $i$:
 \begin{align}
     \dddot{Q}(\Gamma + \Gamma^\top)e_i &= \begin{bmatrix} \mathbf{0} & l_1 & \mathbf{0} & l_2 & \cdots & \mathbf{0} & l_k \\ 
         r_1 & \mathbf{0} & r_2 & \mathbf{0} & \cdots & r_k & \mathbf{0} \end{bmatrix} (\Gamma + \Gamma^\top)e_i
         \\
-        &\equiv \begin{bmatrix} \mathbf{0} & \mathbf{*} & \mathbf{0} & \mathbf{*} & \cdots & \mathbf{0} & \mathbf{*} \\ 
+        &\preceq \begin{bmatrix} \mathbf{0} & \mathbf{*} & \mathbf{0} & \mathbf{*} & \cdots & \mathbf{0} & \mathbf{*} \\ 
             \mathbf{*} & \mathbf{0} & \mathbf{*} & \mathbf{0} & \cdots & \mathbf{*} & \mathbf{0} \end{bmatrix} \begin{bmatrix} 0 & * & 0 &  * & \cdots & 0 & *\end{bmatrix} ^\top
             \\
-            &\equiv \begin{bmatrix} * & * & \cdots &  * & 0 & 0 &\cdots & 0\end{bmatrix} ^\top
-        \end{align}
-        \subsubsection{Term (V)}
-Last term, $\dddot{r} \gamma^\top e_i$ can also be simplified severely (it drops out). The sparsity of $\gamma$ shown in \eqref{eq:gamma_sparsity_pattern} shows that $\gamma^\top e_i = 0$ for all even $i$.
-\\ 
-Since all of the terms have sparsity pattern $\begin{bmatrix} * & * & \cdots &  * & 0 & 0 &\cdots & 0\end{bmatrix} ^\top$, their sum has the same pattern, and we have proven the induction hypothesis from even $i$ to odd $i-1$.
-\subsubsection{Step 3: Summary? (TODO), or is it unnecessary?}
+            &= \begin{bmatrix} * & * & \cdots &  * & 0 & 0 &\cdots & 0\end{bmatrix} ^\top
+\end{align}
+For odd $i$:
+\begin{align}
+\dddot{Q}(\Gamma + \Gamma^\top)e_i &= \begin{bmatrix} \mathbf{0} & l_1 & \mathbf{0} & l_2 & \cdots & \mathbf{0} & l_k \\ 
+        r_1 & \mathbf{0} & r_2 & \mathbf{0} & \cdots & r_k & \mathbf{0} \end{bmatrix} (\Gamma + \Gamma^\top)e_i
+        \\
+        &\preceq \begin{bmatrix} \mathbf{0} & \mathbf{*} & \mathbf{0} & \mathbf{*} & \cdots & \mathbf{0} & \mathbf{*} \\ 
+            \mathbf{*} & \mathbf{0} & \mathbf{*} & \mathbf{0} & \cdots & \mathbf{*} & \mathbf{0} \end{bmatrix} \begin{bmatrix} * & 0 & * & 0 &  \cdots & * & 0\end{bmatrix} ^\top
+            \\
+            &= \begin{bmatrix} 0 & 0 & \cdots &  0 & * & * &\cdots & *\end{bmatrix} ^\top
+\end{align}
+\subsubsection{Term (V)}
+Recall the sparsity of $\gamma$ shown in \eqref{eq:gamma_sparsity_pattern} shows that $\gamma^\top e_i = 0$ for all even $i$, implying
+$$\dddot{r}\gamma^\top e_i = \mathbf{0}$$
+In the case of odd $i$, $\gamma^\top e_i \in \mathbb{R}$ is a scalar and, using the sparsity of $\dddot{r}$ in \eqref{eq:r_sparsity_pattern}, we get 
+$$\dddot{r}\gamma^\top e_i \preceq \begin{bmatrix} 0 & 0 & \cdots &  0 & * & * &\cdots & *\end{bmatrix} ^\top$$
+\subsubsection{Combining Terms (I) - (V)}
+Finally, the terms (I) - (V) of \eqref{eq:sparse_get_lambda_i} at step $i$ are recombined to obtain (a scaled) $\lambda_{i-1}$. For even $i$:
+\begin{align*}
+    \!\!\!\!\!\begin{array}{cc}
+        - \lambda_0 & \!\!i = 1 \\
+      h_{i, i\!-\!1} \lambda_{i\!-\!1} & \!\!i > 1
+   \end{array}\!\!\bigg\} &= \text{(I)} + \text{(II)} - \text{(III)} + \text{(IV)} + \text{(V)}
+    \\
+    &\preceq (1 + 1 - 1 + 1 + 0) \begin{bmatrix} * & * & \cdots &  * & 0 & 0 &\cdots & 0\end{bmatrix} ^\top
+    \\
+    &\preceq \begin{bmatrix} * & * & \cdots &  * & 0 & 0 &\cdots & 0\end{bmatrix} ^\top
+\end{align*}
+And for odd $i$:
+\begin{align*}
+    \!\!\!\!\!\begin{array}{cc}
+        - \lambda_0 & \!\!i = 1 \\
+      h_{i, i\!-\!1} \lambda_{i\!-\!1} & \!\!i > 1
+   \end{array}\!\!\bigg\} &= \text{(I)} + \text{(II)} - \text{(III)} + \text{(IV)} + \text{(V)}
+    \\
+    &\preceq (1 + 1 - 1 + 1 + 1) \begin{bmatrix} 0 & 0 & \cdots &  0 & * & * &\cdots & *\end{bmatrix} ^\top
+    \\
+    &\preceq \begin{bmatrix} 0 & 0 & \cdots &  0 & * & * &\cdots & *\end{bmatrix} ^\top
+\end{align*}
+Recall that $h_{i, i-1}$ is nonzero (see section \ref{sec:bidiag_through_hessenberg}). By reindexing $\lambda_i$, this gives the result.
+\begin{theorem}
 We will now give new names to all nonzero entries in $\Lambda, \Gamma, \lambda, \gamma$, and then show a more compact expression for the stable adjoint system.
 As shown, $\Gamma$ has a checkered pattern, which, here exemplified for $K=6$ we name as: 
 $$\Gamma = \begin{bmatrix}
@@ -541,21 +617,29 @@ $$\Gamma = \begin{bmatrix}
     0 & \sigma_{21} & 0 & \sigma_{22} & 0 & 0 \\
     \omega_{31} & 0 & \omega_{32} & 0 & \omega_{33} & 0 \\
     0 & \sigma_{31} & 0 & \sigma_{32} & 0 & \sigma_{33} \\
-\end{bmatrix} \begin{array}{c}\text{ with }\\\text{ aliases }\end{array} \begin{array}{c}\Omega = \begin{bmatrix}
+\end{bmatrix} \begin{array}{c}\text{ with }\\\text{ aliases }\end{array} \begin{array}{c}\Omega := \begin{bmatrix}
     \omega_{11} & 0 & 0\\
     \omega_{21} & \omega_{22} & 0\\
     \omega_{31} & \omega_{32} & \omega_{33}\\
-\end{bmatrix} \\ \\ \Sigma = \begin{bmatrix}
+\end{bmatrix} \\ \\ \Sigma := \begin{bmatrix}
     \sigma_{11} & 0 & 0 \\
     \sigma_{21} & \sigma_{22} & 0 \\
     \sigma_{31} & \sigma_{32} & \sigma_{33} \\
 \end{bmatrix}\end{array}$$
-and the entries of $\lambda$ and $\gamma$ as 
-$$\lambda = \begin{bmatrix}
+where the defined of $\Omega$ and $\Sigma$ will turn out to be convenient later. We also showed that $\Lambda$ has pattern:
+$$
+\begin{bmatrix}
+    \phi_1 & \mathbf{0} & \phi_2 & \mathbf{0} & \cdots & \phi_k &  \mathbf{0}\\ 
+    \mathbf{0} & \xi_1 & \mathbf{0} & \xi_2 &  \cdots & \mathbf{0} & \xi_k
+\end{bmatrix} \in \mathbb{R}^{(N+M) \times 2K} \begin{array}{c}\text{ with }\\\text{ aliases }\end{array}  \begin{array}{c}\Xi := [\xi_1 \cdots \xi_k]\\ \Phi := [\phi_1 \cdots \phi_k] \end{array}
+$$
+and the entries of $\lambda_0$ and $\gamma$ as 
+$$\lambda_0 = \begin{bmatrix}
     \mathbf{0} \\ \xi_0
 \end{bmatrix} \qquad \gamma = \begin{bmatrix}
     \gamma_1 & 0 & \gamma_2 & 0 & \cdots & 0 & \gamma_K & 0
-\end{bmatrix}^\top$$
+\end{bmatrix}^\top$$ (TODO rename the inner gammas)
+\end{theorem}
 
 \subsection{Columnwise expanded unstable adjoint}
 Define $b_n\lambda_{n+1} := \mathbf{0}$ and $b_0\rho_0:=\mathbf{0}$
@@ -621,21 +705,21 @@ c \nabla c &= r_1^\top\kappa
 \subsection{Stable Adjoint System}
 
 \begin{align}
-    \downarrow_k &= \nabla_{res} + R \gamma
+    \xi_k &= \nabla_{res} + R \gamma
     \\
     r_1^\top \kappa &= c\nabla_c
     \\
-    0 &= \nabla_L + A\Downarrow - \Uparrow B^\top + L(\Sigma + \Sigma^\top)
+    0 &= \nabla_L + A\Xi - \Phi B^\top + L(\Sigma + \Sigma^\top)
     \\
-    0 &= \nabla_R + A^\top\!\!\Uparrow - \Downarrow B + R(\Omega + \Omega^\top) + \kappa e_1^\top + res \gamma^\top
+    0 &= \nabla_R + A^\top\!\!\Phi - \Xi B + R(\Omega + \Omega^\top) + \kappa e_1^\top + res \gamma^\top
     \\
-    \langle l_i, \uparrow_j \rangle &= \nabla \beta_{i-1} e_{i-1} \text{  for } i\leq j
+    \langle l_i, \phi_j \rangle &= \nabla \beta_{i-1} e_{i-1} \text{  for } i\leq j
     \\
-    \langle r_i, \downarrow_j \rangle &= \nabla \alpha_{i} e_{i} \text{  for } i\leq j+1
+    \langle r_i, \xi_j \rangle &= \nabla \alpha_{i} e_{i} \text{  for } i\leq j+1
     \\
     \nabla_v &= -\kappa c
     \\
-    \nabla_A &= \sum_{i=1}^k l_i \downarrow_i^\top + \uparrow_i r_i^\top
+    \nabla_A &= \sum_{i=1}^k l_i \xi_i^\top + \phi_i r_i^\top
 \end{align}
 
 \subsection{The Adjoint Method to compute gradients}
@@ -690,7 +774,7 @@ The following motivates following update step, which can be repeated if necessar
 In the case of Hessenberg factorization, we have the constraint
 $Q^\top q_i = e_i$ \eqref{eq:hessenberg_forward_constraint3} in which case we call the reprojection step followed by normalization \textit{reorthonormalization}.
 \\
-For Bidiagonalization, we have similar constraints $L^\top l_i = e_i$ \eqref{eq:bidiag_forward_constraint4} and $R^\top r_i = e_i$ \eqref{eq:bidiag_forward_constraint5}. Empirically, we find that two repetitions of the reprojection step are necessary to eliminate numerical errors. TODO show this on a Hilbert matrix?
+For Bidiagonalization, we have similar constraints $L^\top l_i = e_i$ \eqref{eq:bidiag_forward_constraint4} and $R^\top r_i = e_i$ \eqref{eq:bidiag_forward_constraint5}. Empirically, we find that two repetitions of the reprojection step are necessary to eliminate numerical errors. (TODO show this on a Hilbert matrix?)
 
 
 \end{document}
