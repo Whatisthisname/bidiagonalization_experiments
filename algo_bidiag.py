@@ -42,7 +42,7 @@ class BidiagOutput:
     bs: ArrayLike
     """(k-1,) float array"""
     c: float
-    """(k-1,) float array"""
+    """scalar"""
     res: ArrayLike
     """(m,) vector, beta_k * r_{k+1}"""
 

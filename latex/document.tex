@@ -10,11 +10,9 @@
 \usepackage{bbm}
 \usepackage{graphicx}
 \usepackage{mdframed}
-\usepackage{amsmath}
 \DeclareMathOperator*{\argmax}{arg\,max}
 \DeclareMathOperator*{\argmin}{arg\,min}
 \usepackage{hyperref}
-\usepackage{graphicx}  % For including images
 \usepackage{xcolor}  % For a colorfull presentation
 \usepackage{listings}  % For presenting code 
 \usepackage{float}
@@ -86,9 +84,10 @@ Let $e_j$ be the $j$th unit vector. Denote by ``$\circ$'' the element-wise
 matrix product which binds weaker than the standard matrix product and stronger than addition, and define the matrices
 \begin{align*}
 \mathbf{1} := [1]_{i,j=1}^K \qquad
-I_{\leq} := [\delta_{i \leq j}]_{i,j=1}^K \qquad
-I_{<} := [\delta_{i < j}]_{i,j=1}^K \qquad
-I_{\ll} := [\delta_{i+1 < j}]_{i,j=1}^K
+I_{\leq} := [\delta_{i \geq j}]_{i,j=1}^K \qquad
+I_{\geq} := [\delta_{i \leq j}]_{i,j=1}^K \qquad
+I_{<} := [\delta_{i > j}]_{i,j=1}^K \qquad
+I_{\ll} := [\delta_{i > j+1}]_{i,j=1}^K
 \end{align*}
 so that for example, $\mathbf{1} \circ A = A$, $I_{\leq} \circ A$ extracts the lower triangular matrix 
 of $A$ (including the diagonal), and $I_{\ll} \circ A = 0$ enforces Hessenberg form.
@@ -117,9 +116,9 @@ such that $\text{matvec}(v, \theta) = A_\theta v$ for any vector $v \in \mathbb{
 
 \subsection{Bidiagonalization}
 $$\texttt{Bidiagonalize}_K: (A, v) \mapsto (L, R, B, r, c)$$
-Bidiagonalizing an arbitrary matrix $A \in \mathbb{R}^{N \times M}$ with initial vector $v \in \mathbb{R}^M$ and a prescribed number of iterations $K \in \mathbb{N}_+$, will yield column-orthonormal $L \in \mathbb{R}^{N \times K}$ and $R \in \mathbb{R}^{M \times K}$, bidiagonal $B \in \mathbb{R}^{K \times K}$, residual vector $r \in \mathbb{R}^N$ and inverse length $c \in \mathbb{R}$, satisfying the following constraints:
+Bidiagonalizing an arbitrary matrix $A \in \mathbb{R}^{N \times M}$ with initial vector $v \in \mathbb{R}^M$ and a prescribed number of iterations $K \in \mathbb{N}_+$, will yield column-orthonormal $L \in \mathbb{R}^{N \times K}$ and $R \in \mathbb{R}^{M \times K}$, bidiagonal $B \in \mathbb{R}^{K \times K}$, residual vector $r \in \mathbb{R}^M$ and inverse length $c \in \mathbb{R}$, satisfying the following constraints:
 \begin{align}
-    A^\top L &= RB^\top + r(e_k)^\top \label{eq:bidiag_forward_constraint1}
+    A^\top L &= RB^\top + r(e_K)^\top \label{eq:bidiag_forward_constraint1}
     \\
     AR &= LB \label{eq:bidiag_forward_constraint2}
     \\
@@ -428,7 +427,7 @@ $$\lambda_0 = \begin{bmatrix}
 \subsubsection{Sparsity patterns of the input gradients.}
 The sparsity patterns of $\nabla_{\dddot{Q}} \rho$, $\nabla_{\dddot{H}} \rho$, and $\nabla_{\dddot{r}} \rho$ match those of $\dddot{Q}, \dddot{H}, \dddot{r}$, due to the linear nature of \texttt{extract}:
 \begin{align}
-    \nabla_{\dddot{Q}} \rho := \begin{bmatrix}\mathbf{0} & \nabla_{l_1}\rho & \mathbf{0} & \nabla_{l_2}\rho & \cdots & \mathbf{0} & \nabla_{l_k}\rho \\ \nabla_{r_1}\rho & \mathbf{0} & \nabla_{r_2}\rho & \mathbf{0} &  \cdots & \nabla_{r_k}\rho & \mathbf{0} \end{bmatrix} \in \mathbb{R}^{(N+M) \times K} \label{eq:nabla_Q_sparsity_pattern}
+    \nabla_{\dddot{Q}} \rho := \begin{bmatrix}\mathbf{0} & \nabla_{l_1}\rho & \mathbf{0} & \nabla_{l_2}\rho & \cdots & \mathbf{0} & \nabla_{l_k}\rho \\ \nabla_{r_1}\rho & \mathbf{0} & \nabla_{r_2}\rho & \mathbf{0} &  \cdots & \nabla_{r_k}\rho & \mathbf{0} \end{bmatrix} \in \mathbb{R}^{(N+M) \times 2K} \label{eq:nabla_Q_sparsity_pattern}
 \end{align}
 \begin{align}
     \nabla_{\dddot{r}} \rho := \begin{pmatrix}\mathbf{0} \\ \nabla_{r} \rho \end{pmatrix} \in \mathbb{R}^{N+M} \label{eq:nabla_r_sparsity_pattern}
@@ -527,8 +526,8 @@ For even $i$:
 For odd $i$, we get:
 \begin{align}
     \dddot{Q}^\top \dddot{A}^\top \lambda_i &= 
-    \begin{bmatrix}\mathbf{0} & l_1 & \mathbf{0} & l_2 & \cdots & \mathbf{0} & l_k \\ r_1 & \mathbf{0} & r_2 & \mathbf{0} &  \cdots & r_k & \mathbf{0} \end{bmatrix} ^\top \begin{bmatrix} \mathbf{0} & A \\ A^\top & \mathbf{0} \end{bmatrix} \begin{bmatrix} \varphi_i \\ \mathbf{0} \end{bmatrix} = 
-    \begin{bmatrix} r_1^\top A^\top \varphi_i & 0 & r_2^\top A^\top \varphi_i  & 0 & \cdots & r_k^\top A^\top \varphi_i & 0 \end{bmatrix} ^\top
+    \begin{bmatrix}\mathbf{0} & l_1 & \mathbf{0} & l_2 & \cdots & \mathbf{0} & l_k \\ r_1 & \mathbf{0} & r_2 & \mathbf{0} &  \cdots & r_k & \mathbf{0} \end{bmatrix} ^\top \begin{bmatrix} \mathbf{0} & A \\ A^\top & \mathbf{0} \end{bmatrix} \begin{bmatrix} \phi_i \\ \mathbf{0} \end{bmatrix} = 
+    \begin{bmatrix} r_1^\top A^\top \phi_i & 0 & r_2^\top A^\top \phi_i  & 0 & \cdots & r_k^\top A^\top \phi_i & 0 \end{bmatrix} ^\top
     \\
     &\preceq \begin{bmatrix} * & 0 & * & 0 & \cdots & * & 0 \end{bmatrix}
 \end{align}
