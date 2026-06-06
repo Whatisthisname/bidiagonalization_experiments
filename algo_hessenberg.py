@@ -179,7 +179,7 @@ def hessenberg(
 
 def _hessenberg_forward(matvec, real_size, num_matvecs, v, *params, reortho: str):
     if num_matvecs < 0 or num_matvecs > len(v):
-        raise ValueError("fuck")
+        raise ValueError("oh no")
 
     # Initialise the variables
     (n,), k = jnp.shape(v), num_matvecs
