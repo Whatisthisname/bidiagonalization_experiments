@@ -272,23 +272,32 @@ def _measure_profile(
         _block_until_ready_pytree(x)
         fwd_steady.append(time.perf_counter() - t0)
 
-    # Backward timings
-    _, cotan = jax.value_and_grad(loss_fn)(out)
-    _block_until_ready_pytree(cotan)
-    first, vjp_fn = jax.vjp(fwd_fn_jit, v, params)
-    _block_until_ready_pytree(first)
-    vjp_fn = jax.jit(vjp_fn)
-    t0 = time.perf_counter()
-    b2 = vjp_fn(cotan)
-    _block_until_ready_pytree(b2)
-    bwd_compile = time.perf_counter() - t0
-
-    bwd_steady = []
-    for _ in range(steady_repeats):
+    # Backward timings. Reverse-mode autodiff (custom_vjp=False) materializes the
+    # whole unrolled computation and can exhaust memory at large sizes; when that
+    # happens we record the backward metrics as missing so the curve truncates
+    # rather than crashing the whole sweep.
+    oom = False
+    bwd_compile = float("nan")
+    bwd_steady: list[float] = []
+    try:
+        _, cotan = jax.value_and_grad(loss_fn)(out)
+        _block_until_ready_pytree(cotan)
+        first, vjp_fn = jax.vjp(fwd_fn_jit, v, params)
+        _block_until_ready_pytree(first)
+        vjp_fn = jax.jit(vjp_fn)
         t0 = time.perf_counter()
-        y = vjp_fn(cotan)
-        _block_until_ready_pytree(y)
-        bwd_steady.append(time.perf_counter() - t0)
+        b2 = vjp_fn(cotan)
+        _block_until_ready_pytree(b2)
+        bwd_compile = time.perf_counter() - t0
+
+        for _ in range(steady_repeats):
+            t0 = time.perf_counter()
+            y = vjp_fn(cotan)
+            _block_until_ready_pytree(y)
+            bwd_steady.append(time.perf_counter() - t0)
+    except Exception as exc:  # noqa: BLE001 - any backend OOM/runtime failure
+        oom = True
+        print(f"  [skip backward] {type(exc).__name__}: {str(exc)[:120]}")
 
     # Optional true compile timings
     if include_true_compile and False:
@@ -306,15 +315,26 @@ def _measure_profile(
             bwd_compile_times.append(time.perf_counter() - t0)
         bwd_compile_s = float(np.mean(bwd_compile_times))
 
+    fwd_steady_mean = float(np.mean(fwd_steady))
+    if oom or not bwd_steady:
+        bwd_steady_mean = None
+        bwd_steady_std = None
+        bwd_compile_s = None
+    else:
+        bwd_steady_mean = float(np.mean(bwd_steady))
+        bwd_steady_std = float(np.std(bwd_steady))
+        bwd_compile_s = bwd_compile - bwd_steady_mean
+
     return {
-        "fwd_steady_mean_s": float(np.mean(fwd_steady)),
+        "fwd_steady_mean_s": fwd_steady_mean,
         "fwd_steady_std_s": float(np.std(fwd_steady)),
         "fwd_steady_repeats": int(steady_repeats),
-        "bwd_steady_mean_s": float(np.mean(bwd_steady)),
-        "bwd_steady_std_s": float(np.std(bwd_steady)),
+        "bwd_steady_mean_s": bwd_steady_mean,
+        "bwd_steady_std_s": bwd_steady_std,
         "bwd_steady_repeats": int(steady_repeats),
-        "fwd_compile_s": fwd_compile - float(np.mean(fwd_steady)),  # fwd_compile_s,
-        "bwd_compile_s": bwd_compile - float(np.mean(bwd_steady)),  # bwd_compile_s,
+        "fwd_compile_s": fwd_compile - fwd_steady_mean,
+        "bwd_compile_s": bwd_compile_s,
+        "oom": bool(oom),
     }
 
 
