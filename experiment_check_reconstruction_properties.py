@@ -49,11 +49,11 @@ hess_adjoint_rep = Config(algo="Hess", adjoint=True, reortho=True, reproj_adj="m
 bidi_adjoint_rep = Config(algo="Bidi", adjoint=True, reortho=True, reproj_adj="match")
 
 
-def run_experiment(configuration) -> None:
-    fig, (ax) = plt.subplots(figsize=(10, 10))
+def run_experiment(configuration):
+    fig, ax = plt.subplots(figsize=(5, 3.2))
 
     for config, label in tqdm.tqdm(configuration[1].items(), desc="Testing setups"):
-        ns = jnp.arange(4, 32, step=8)
+        ns = jnp.arange(4, 40, step=3)
         reconstruct_loss = []
         jacobian_loss = []
 
@@ -98,11 +98,17 @@ def run_experiment(configuration) -> None:
 
                 v_aug = jnp.concat([jnp.zeros(height), v])
 
+                # In `hessenberg`, `reortho_vjp` drives the forward
+                # reorthonormalization and `reortho` drives the adjoint
+                # reprojection (see algo_hessenberg). Map our config onto the
+                # right string-valued arguments.
+                forward_reortho = "full" if config.reortho else "none"
+                adjoint_reortho = config.reproj_adj if config.reproj_adj else "none"
                 hess_func = hessenberg(
                     height + width,
-                    reortho=config.reortho,
+                    reortho=adjoint_reortho,
                     custom_vjp=config.adjoint,
-                    reortho_vjp=config.reproj_adj,
+                    reortho_vjp=forward_reortho,
                 )
 
                 @jax.jit
@@ -137,7 +143,10 @@ def run_experiment(configuration) -> None:
                 jacobian_error = jnp.sqrt(jnp.mean(jacobian_diff**2))
                 jacobian_loss.append(jacobian_error.item())
 
-        print("\n Loss is:", jacobian_loss)
+        if configuration[0] == "jac":
+            print("\n Jacobian loss:", jacobian_loss)
+        else:
+            print("\n Reconstruction loss:", reconstruct_loss)
         match configuration[0]:
             case "jac":
                 ax.semilogy(
@@ -166,19 +175,22 @@ def run_experiment(configuration) -> None:
                     **styles[config],
                 )
 
-        ax.legend(fontsize="xx-small")
-        ax.set_xlabel("Matrix size", fontsize="small")
-        ax.set_ylabel("Accuracy", fontsize="small")
+        ax.legend(fontsize="small", loc="center right")
+        ax.set_xlabel("Matrix size")
+        ax.set_ylabel("Gradient error")
         ax.grid(True, alpha=0.3)
+
+    fig.tight_layout()
+    return fig
 
 
 jac_configs = (
     "jac",
     {
-        bidi_backprop: "Bidiag: Backprop (w/o reortho)",
-        bidi_backprop_reo: "Bidiag: Backprop (w/  reortho)",
-        bidi_adjoint_reo: "Bidiag: Adjoint (w reortho, w/o reproj)",
-        bidi_adjoint_rep: "Bidiag: Adjoint (w reortho, w reproj)",
+        bidi_backprop: "Autodiff (w/o reortho)",
+        bidi_backprop_reo: "Autodiff (w/ reortho)",
+        bidi_adjoint_reo: "Adjoint (w/o reproj)",
+        bidi_adjoint_rep: "Adjoint (w/ reproj)",
     },
 )
 
@@ -189,7 +201,6 @@ rec_configs = (
         bidi_backprop_reo: "Bidiag (w/  reortho)",
         hess_backprop: "Hess (w/o reortho)",
         hess_backprop_reo: "Hess (w/ reortho)",
-        # TODO add double reortho as well
     },
 )
 
@@ -203,23 +214,15 @@ styles = {
     hess_backprop_reo: {"color": "C5"},
 }
 
+
+def figures_dir():
+    here = os.path.dirname(os.path.abspath(__file__))
+    out = os.path.join(here, "latex", "figures")
+    os.makedirs(out, exist_ok=True)
+    return out
+
+
 if __name__ == "__main__":
-    run_experiment(jac_configs)
-
-
-def matching_directory(file, where, /, replace="experiments/"):
-    if where not in ["data/", "figures/", "results/"]:
-        raise ValueError
-    if replace not in ["experiments/"]:
-        raise ValueError
-
-    # Read directory name and replace "experiments" with e.g. "data"
-    directory_file = os.path.dirname(file) + "/"
-    return directory_file.replace(replace, where)
-
-
-directory_fig = matching_directory(__file__, "figures/")
-os.makedirs(directory_fig, exist_ok=True)
-plt.savefig(f"{directory_fig}accuracy_loss.pdf")
-
-plt.show()
+    fig = run_experiment(jac_configs)
+    fig.savefig(os.path.join(figures_dir(), "fig_stability.pdf"), bbox_inches="tight")
+    print("SAVED_STABILITY_FIGURE")

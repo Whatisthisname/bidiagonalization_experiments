@@ -1,3 +1,4 @@
+import os
 import polars as pl
 import numpy as np
 import matplotlib.pyplot as plt
@@ -245,18 +246,90 @@ def plot_profiles(
     plt.show()
 
 
-if __name__ == "__main__":
-    # Example usage: adjust n and filters as needed
-    # plot_profiles(
-    #     jsonl_path="benchmarks.ndjson",
-    #     n=1138,
-    #     matrix_type="1138_bus",  # 1138_bus, normal
-    #     reorthogonalize=True,
-    # )
-    plot_profiles(
-        jsonl_path="benchmarks.ndjson",
-        n=950,
-        k=None,
-        matrix_type="diagonal",  # 1138_bus, normal
-        reorthogonalize=False,
+FORWARD_COLOR = "black"
+ADJOINT_COLOR = "#1f77b4"
+AUTODIFF_COLOR = "#ff7f0e"
+
+
+def _figures_dir():
+    here = os.path.dirname(os.path.abspath(__file__))
+    out = os.path.join(here, "latex", "figures")
+    os.makedirs(out, exist_ok=True)
+    return out
+
+
+def _bidiag_slice(df_flat, matrix, reorthogonalize):
+    return df_flat.filter(
+        (pl.col("algorithm") == "bidiag")
+        & (pl.col("matrix") == matrix)
+        & (pl.col("reorthogonalize") == reorthogonalize)
     )
+
+
+def make_compile_time_figure(jsonl_path, n=950, matrix="diagonal", reorthogonalize=True):
+    """Compile time vs Krylov depth k at a fixed matrix size."""
+    df_flat = _flatten_records(pl.read_ndjson(jsonl_path))
+    sub = _bidiag_slice(df_flat, matrix, reorthogonalize).filter(pl.col("n") == n)
+
+    cvjp = sub.filter(pl.col("custom_vjp")).sort("k")
+    auto = sub.filter(~pl.col("custom_vjp")).sort("k")
+
+    fig, ax = plt.subplots(figsize=(5, 3.2))
+    ax.plot(cvjp["k"], cvjp["fwd_compile_s"], "-o", color=FORWARD_COLOR, label="Forward")
+    ax.plot(cvjp["k"], cvjp["bwd_compile_s"], "-o", color=ADJOINT_COLOR, label="Adjoint")
+    ax.plot(auto["k"], auto["bwd_compile_s"], "-o", color=AUTODIFF_COLOR, label="Autodiff")
+    ax.set_xlabel("Krylov-space depth $k$")
+    ax.set_ylabel("Compile time (s)")
+    ax.set_yscale("log")
+    ax.grid(True, alpha=0.3)
+    ax.legend()
+    fig.tight_layout()
+    return fig
+
+
+def make_backward_time_figure(jsonl_path, matrix="normal", reorthogonalize=True):
+    """Backward-pass run time vs matrix size along the k=n diagonal.
+
+    The autodiff series stops where it ran out of memory (missing records),
+    while the adjoint continues to larger problems.
+    """
+    df_flat = _flatten_records(pl.read_ndjson(jsonl_path))
+    sub = _bidiag_slice(df_flat, matrix, reorthogonalize).filter(pl.col("k") == pl.col("n"))
+
+    cvjp = sub.filter(pl.col("custom_vjp")).sort("n")
+    auto = (
+        sub.filter(~pl.col("custom_vjp"))
+        .filter(pl.col("bwd_steady_mean_s").is_not_null())
+        .sort("n")
+    )
+
+    fig, ax = plt.subplots(figsize=(5, 3.2))
+    ax.plot(cvjp["n"], cvjp["fwd_steady_mean_s"], "-o", color=FORWARD_COLOR, label="Forward")
+    ax.plot(cvjp["n"], cvjp["bwd_steady_mean_s"], "-o", color=ADJOINT_COLOR, label="Adjoint")
+    ax.plot(auto["n"], auto["bwd_steady_mean_s"], "-o", color=AUTODIFF_COLOR, label="Autodiff")
+    if auto.height:
+        last = auto.sort("n").tail(1)
+        ax.annotate(
+            "out of memory",
+            xy=(last["n"][0], last["bwd_steady_mean_s"][0]),
+            xytext=(8, -2),
+            textcoords="offset points",
+            color=AUTODIFF_COLOR,
+            fontsize="small",
+        )
+    ax.set_xlabel("Matrix size $n$ (with $k=n$)")
+    ax.set_ylabel("Backward-pass time (s)")
+    ax.set_yscale("log")
+    ax.grid(True, alpha=0.3)
+    ax.legend()
+    fig.tight_layout()
+    return fig
+
+
+if __name__ == "__main__":
+    out = _figures_dir()
+    fig_compile = make_compile_time_figure("benchmarks.ndjson")
+    fig_compile.savefig(os.path.join(out, "fig_compile_time.pdf"), bbox_inches="tight")
+    fig_backward = make_backward_time_figure("benchmarks.ndjson")
+    fig_backward.savefig(os.path.join(out, "fig_backward_time.pdf"), bbox_inches="tight")
+    print("SAVED_PERF_FIGURES")
