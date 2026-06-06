@@ -13,10 +13,12 @@
 \DeclareMathOperator*{\argmax}{arg\,max}
 \DeclareMathOperator*{\argmin}{arg\,min}
 \usepackage{hyperref}
+\usepackage[numbers,sort&compress]{natbib}
 \usepackage{xcolor}  % For a colorfull presentation
 \usepackage{listings}  % For presenting code 
 \usepackage{float}
 \usepackage{multicol}
+\graphicspath{{figures/}}
 
 
 % Definition of a style for code, matter of taste
@@ -53,31 +55,29 @@
 \lstset{style=mystyle}
 
 \newmdtheoremenv{theorem}{Theorem}
+\newtheorem{example}{Example}
 
 \begin{document}
 \title{Numerically stable gradients of Golub-Kahan Bidiagonalization}
 \author{Theo Würtzen and Nicholas Krämer}
 \maketitle
+
+\begin{abstract}
+Bidiagonalization is used throughout matrix-free numerical linear algebra, but differentiating through it with automatic differentiation is both inaccurate and memory-hungry: the backward pass drifts and exhausts memory long before the forward pass runs into trouble. We derive a numerically stable, matrix-free adjoint for Golub-Kahan bidiagonalization. The starting point is that bidiagonalizing a matrix $A$ with initial vector $v$ is the same computation as a Hessenberg factorization of the augmented symmetric matrix $\left[\begin{smallmatrix}0 & A\\ A^\top & 0\end{smallmatrix}\right]$, so we can borrow the stable Hessenberg adjoint of \citet{kraemer2024gradients}. That augmented problem is mostly zeros; pruning them collapses the adjoint back to the original dimensions and leaves a small system built from matrix-vector products and a reprojection step. In our experiments the adjoint costs about as much as the forward pass to compile and run, and it stays accurate on problems large enough that plain automatic differentiation has already given up.
+\end{abstract}
+
 \tableofcontents
 \newpage
 
-\section{Rambling:}
+\section{Introduction}
+Many models in scientific and probabilistic machine learning are tuned by differentiating functions of large matrices, where the matrix is available only through matrix-vector products~\citep{kraemer2024gradients}. Krylov methods such as bidiagonalization and the closely related Lanczos and Arnoldi iterations are the standard tools for these problems, yet differentiating the iterations themselves in a stable, matrix-free way has remained difficult.
 
-Bidiagonalization suffers from loss of orthogonality of the vectors in $L$ and $R$. This can be solved by reorthonormalizing the new vector against all computed vectors.
+Golub-Kahan bidiagonalization~\citep{golub1965calculating} suffers from loss of orthogonality of the computed vectors in $L$ and $R$~\citep{paige1971computation}, which is repaired in the forward pass by reorthonormalizing each new vector against the previously computed ones~\citep{golub2013matrix}. Differentiating the iteration is harder: reverse-mode automatic differentiation through the unrolled loop both loses accuracy as the matrix grows and stores the entire computational graph, exhausting memory.
 
-Ideally, that should've been enough, but it can be shown that it is not - we need at least 3 applications of reorthonormalization for this to work. \footnote{Show this in an experiment}.
-
-In the adjoint system we can do something similar.
-
-UPARROW IS PHI, DOWNARROW IS XI
-
-TODO: 
-- Show how the stable adjoint system is derived after recognizing the sparsity.
-- Count constraints and unknowns in the stable adjoint system (because it is interesting). What are the associated primal constraints?
-
+This paper makes the gradient of bidiagonalization stable and matrix-free. We use that bidiagonalizing $A$ with initial vector $v$ is exactly a Hessenberg factorization of an augmented symmetric matrix built from $A$, so we can reuse the stable Hessenberg adjoint of \citet{kraemer2024gradients}. Most of that augmented problem is structurally zero, and pruning the zeros collapses the adjoint back to the original dimensions. What remains is a small system whose reprojection step does for the backward pass what reorthonormalization does for the forward pass. Section~\ref{sec:bidiag_through_hessenberg} sets up the connection to Hessenberg factorization, Section~\ref{subsec:derivation_stable_adjoint_system} carries out the reduction, and Section~\ref{sec:experiments} reports the experiments.
 
 \section{Background}
-While Bidiagonalization has well-understood forward algorithms and constraints, computing its gradient in a numerically stable way is challenging (TODO show that it is unstable from example). This paper builds from a connection between Bidiagonalization and Hessenberg factorization, namely that any Bidiagonalization can be computed by performing Hessenberg factorization on an appropriately constructed symmetric matrix, allowing us to then leverage the stable gradient of Hessenberg factorization proposed in (TODO cite Nico).
+While Bidiagonalization has well-understood forward algorithms and constraints, computing its gradient in a numerically stable way is challenging, and naive automatic differentiation drifts as the matrix grows (Figure~\ref{fig:stability}). This paper builds from a connection between Bidiagonalization and Hessenberg factorization, namely that any Bidiagonalization can be computed by performing Hessenberg factorization on an appropriately constructed symmetric matrix, allowing us to then leverage the stable gradient of Hessenberg factorization proposed by \citet{kraemer2024gradients}.
 
 \subsection{Notation}
 Let $e_j$ be the $j$th unit vector. Denote by ``$\circ$'' the element-wise 
@@ -92,8 +92,8 @@ I_{\ll} := [\delta_{i > j+1}]_{i,j=1}^K
 so that for example, $\mathbf{1} \circ A = A$, $I_{\leq} \circ A$ extracts the lower triangular matrix 
 of $A$ (including the diagonal), and $I_{\ll} \circ A = 0$ enforces Hessenberg form.
 
-\subsection{(Incomplete) Maybe overly complicated attempt at formalizing the sparsity notation }
-It will be convenient to introduce notation to characterize the sparsity and dimensionality of vectors and matrices succinctly. We will use the symbol $*$ to denote an unknown scalar. Thus, $(*, 0, 0)^\top$ can be thought of as the span of the first unit vector. Formally, define an extension of the reals as $\mathbb{R}_* = \mathbb{R} \cup \{*\}$, where the sum and product with $*$ are extended as 
+\subsection{Sparsity notation}\label{subsec:sparsity_notation}
+It will be convenient to characterize the sparsity and dimensionality of vectors and matrices succinctly. We use the symbol $*$ to denote an unknown scalar. Thus, $(*, 0, 0)^\top$ can be thought of as the span of the first unit vector. Formally, define an extension of the reals as $\mathbb{R}_* = \mathbb{R} \cup \{*\}$, where the sum and product with $*$ are extended as 
 \begin{align*}
     s + * = * \quad\quad\quad
     s \cdot * = \bigg\{ \begin{array}{cr} 0 & s = 0 \\ * & \text{otherwise}  \end{array}
@@ -199,25 +199,49 @@ that just projects away the zeros and extracts the relevant non-zero entries fro
 \\
 The problem is that this is "computing a lot of zeros". We will show that we can prune the computational graph to minimize work.
 
-\section{Adjoint systems}
+\subsection{The adjoint method}\label{subsec:adjoint_method}
+The adjoint method computes parameter gradients of losses that depend on the output of a parameterized numerical solver. Let $s : \theta \mapsto x$ be a solver that yields a solution $x$ to a problem $\theta$, with $\text{dim}(\theta) = P$ and $\text{dim}(x) = X$. Suppose we know a constraint function $c : x \mapsto \mathbb{R}^X$ with $c(s(\theta), \theta) = \mathbf{0}$ for all $\theta$ and with $\frac{\partial c}{\partial \theta}$ everywhere nonsingular, and a loss $\ell : x \mapsto \mathbb{R}$. We seek $\nabla_\theta \ell(s(\theta))$.
+\begin{example}[Hessenberg Factorization]
+    For $s = $ \texttt{Hessenberg} we have $\theta = (A, v)$ and $x = (Q, H, r, c)$. The constraint function is the concatenation of constraints \eqref{eq:hessenberg_forward_constraint1} through \eqref{eq:hessenberg_forward_constraint5}, so $c(x, \theta) = \mathbf{0}$ exactly when $(Q, H, r, c)$ correctly Hessenberg-factorizes $(A, v)$.
+\end{example}
+Because $c(s(\theta), \theta) = \mathbf{0}$ is constantly zero, its total derivative is also zero, so the chain rule gives
+\begin{align}
+    \mathbf{0} = \frac{d}{d\theta} c(s(\theta), \theta) = \frac{\partial c}{\partial s} \frac{\partial s}{\partial \theta} + \frac{\partial c}{\partial \theta}
+    \implies \frac{\partial c}{\partial s} \frac{\partial s}{\partial \theta} = -\frac{\partial c}{\partial \theta} \label{eq:exploit_constraint}
+\end{align}
+Applying the chain rule to the gradient itself,
+\begin{align}
+    \nabla_\theta \ell(s(\theta)) = \frac{\partial s}{\partial \theta}^\top\nabla_x \ell(s(\theta))  \label{eq:gradient_chain_rule}
+\end{align}
+we assume $\nabla_x \ell(s(\theta))$ is easy to obtain. The challenge is $\frac{\partial s}{\partial \theta} \in \mathbb{R}^{X \times P}$, which is expensive for high-dimensional $x$. If we can find \textit{adjoint variables} $\boldsymbol{\lambda} \in \mathbb{R}^X$ solving the uniquely determined $X \times X$ linear system
+\begin{align}
+    \nabla_x \ell(s(\theta)) = \frac{\partial c}{\partial s}^\top \boldsymbol{\lambda}  \label{eq:adjoint_system}
+\end{align}
+then substituting into \eqref{eq:gradient_chain_rule} yields
+\begin{align*}
+    \nabla_\theta \ell(s(\theta)) = \frac{\partial s}{\partial \theta}^\top \frac{\partial c}{\partial s}^\top \boldsymbol{\lambda} = \left(\frac{\partial c}{\partial s} \frac{\partial s}{\partial \theta}\right)^\top \boldsymbol{\lambda} \overset{\eqref{eq:exploit_constraint}}{=} -\frac{\partial c}{\partial \theta}^\top \boldsymbol{\lambda}
+\end{align*}
+This is much cheaper than the direct approach. Computing $\frac{\partial s}{\partial \theta}$ directly costs $O(PX^3)$ operations (one $X \times X$ solve per parameter), whereas the adjoint approach solves a single $X \times X$ system \eqref{eq:adjoint_system} and evaluates $-\frac{\partial c}{\partial \theta}^\top \boldsymbol{\lambda}$, for $O(X^3 + XP)$ operations. When $P \ll X$, this is the difference between $O(X^3)$ and $O(PX^3)$, which is decisive in applications like neural network training or PDE-constrained optimization where $X$ is very large.
 
-\subsection{Adjoint system of Hessenberg Factorization}\label{subsec:adjoint_hessenberg}
+\section{The adjoint system of Hessenberg factorization}
+
+\subsection{The adjoint constraints}\label{subsec:adjoint_hessenberg}
 Let $K \in \mathbb{N}_+$, $A \in \mathbb{R}^{N\times N}$, $v \in \mathbb{R}^N$, $H \in \mathbb{R}^{K\times K}$, $Q \in \mathbb{R}^{N\times K}$, $r \in \mathbb{R}^N$, $c \in \mathbb{R}$ satisfy the primal constraints \eqref{eq:hessenberg_forward_constraint1} through \eqref{eq:hessenberg_forward_constraint5}. Let adjoint variables $\Lambda \in \mathbb{R}^{N\times K}$ with $\Lambda e_i = \lambda_i$, $\Gamma \in \mathbb{R}^{K\times K}$, $\lambda_0 \in \mathbb{R}^N$, $\gamma \in \mathbb{R}^K$ solve the following system of equations:
 \begin{align}
 0 &= \nabla_{Q} \rho + A^\top \Lambda - \Lambda H^\top + \lambda_0 (e_{1})^\top 
    + Q(I_{\leq} \circ \Gamma) + Q(I_{\leq} \circ \Gamma)^\top + r \gamma^\top \label{eq:adjoint_hessenberg_constraint1}\\ 
-0 &= \nabla_{H} \rho - Q^\top \Lambda + I_{\ll} \circ \Sigma \label{eq:adjoint_hessenberg_constraint2}\\
+0 &= \nabla_{H} \rho - Q^\top \Lambda + I_{\ll} \circ \mathcal{S} \label{eq:adjoint_hessenberg_constraint2}\\
 0 &= \nabla_{r} \rho - \Lambda e_{K} + Q \gamma \label{eq:adjoint_hessenberg_constraint3}\\
 0 &= \nabla_{c} \rho - v^\top \lambda_0 \label{eq:adjoint_hessenberg_constraint4}
 \end{align}
-The gradients $\nabla_A\rho$ and $\nabla_v\rho$ are then given by\footnote{note a sign difference between \eqref{eq:adjoint_hessenberg_constraint6} and the result in (TODO CITE) due to a typo}:
+The gradients $\nabla_A\rho$ and $\nabla_v\rho$ are then given by\footnote{Note a sign difference between \eqref{eq:adjoint_hessenberg_constraint6} and the corresponding result of \citet{kraemer2024gradients}, which is due to a typo there.}:
 \begin{align}
     \nabla_A\rho &= \Lambda Q^\top \label{eq:adjoint_hessenberg_constraint5} \\
     \nabla_v\rho &= -c\lambda_0 \label{eq:adjoint_hessenberg_constraint6}
 \end{align}
 
 
-\subsection{Solving the Adjoint System}\label{subsec:solving_adjoint_system}
+\subsection{Solving the adjoint system}\label{subsec:solving_adjoint_system}
 The output gradients $\nabla_Q\rho$, $\nabla_H\rho$, $\nabla_r\rho$, $\nabla_c\rho$ will have know quantities, so we need only determine the adjoint variables $\Lambda$, $\Gamma$, $\lambda$, $\gamma$. $\Gamma$ is involved only in equation \eqref{eq:adjoint_hessenberg_constraint1} in which only the lower triangular part is accessed, so for notational convenience we will redefine $\Gamma$ to be lower triangular, meaning we can effectively drop the mask $\Gamma := I_{\leq} \circ \Gamma$.
 \\
 We get expressions for $\lambda_K$ and $\gamma$:
@@ -232,7 +256,7 @@ We get expressions for $\lambda_K$ and $\gamma$:
 \end{align}
 To evaluate $Q^\top \lambda_k$, inspect \eqref{eq:adjoint_hessenberg_constraint2}:
 \begin{align}
-    \eqref{eq:adjoint_hessenberg_constraint2} & \iff &Q^\top \Lambda &= \nabla_{H} \rho + I_{\ll} \circ \Sigma \nonumber
+    \eqref{eq:adjoint_hessenberg_constraint2} & \iff &Q^\top \Lambda &= \nabla_{H} \rho + I_{\ll} \circ \mathcal{S} \nonumber
     \\
     & \;\implies & (\mathbf{1} - I_{\ll}) \circ Q^\top \Lambda &= (\mathbf{1} - I_{\ll}) \circ \nabla_{H} \rho + (\mathbf{1} - I_{\ll}) \circ I_{\ll} \circ \Sigma \nonumber
     \\ 
@@ -298,7 +322,6 @@ Finally, to solve for $\lambda_i$ and $\lambda$, we look again at \eqref{eq:adjo
    \end{array}\!\!\bigg\} &\!= \!\nabla_{q_i} \rho + A^\top \lambda_i - \!\sum_{j=i}^{K} h_{ij} \lambda_j + Q(\Gamma + \Gamma^\top)e_i + r \gamma^\top e_i \label{eq:get_lambda_i}
 \end{align}
 We now have all equations necessary to solve for all adjoint variables. There is a part that we have not yet addressed: In \eqref{eq:get_lambda_i}, we will need access to $(\Gamma + \Gamma^\top)e_i$, however \eqref{eq:get_Gamma_i} will only give us $\Gamma^\top e_i$. How we do this is best explained with an example.
-\newtheorem{example}{Example}
 \begin{example}[Construction of $\Gamma + \Gamma^\top$]\label{ex:construction_Gamma_Gamma_top}
 Let $K=4$. For decreasing $i$ starting from $K$ down to $1$, the known entries in upper triangular $\Gamma^\top \in \mathbb{R}^{4 \times 4}$ will evolve as follows, where $?$ denotes unknown entries, and $0$ and $\cdot$ denotes known entries:
 \begin{align*}
@@ -373,9 +396,20 @@ Initially, use \eqref{eq:get_gamma} to get $\gamma$, then follow that up with \e
 Use \eqref{eq:get_Gamma_i} to get $\Gamma^\top e_i$ to then get $(\Gamma + \Gamma^\top)e_i$. Use in \eqref{eq:get_lambda_i} to solve for $\lambda_{i-1}$, or, if $i=1$, $\lambda$.
 \\ Finally, we know the adjoint variables and can compute the gradients in \eqref{eq:adjoint_hessenberg_constraint5} and \eqref{eq:adjoint_hessenberg_constraint6}.
 
-\subsection{Derivation of the Stable Adjoint System} \label{subsec:derivation_stable_adjoint_system}
+\section{A stable adjoint system for Bidiagonalization}
+
+\subsection{Deriving the adjoint system} \label{subsec:derivation_stable_adjoint_system}
 As described in \ref{sec:bidiag_through_hessenberg}, we can use $\overline{\texttt{Bidiagonalize}}_K$ to bidiagonalize any matrix $A$ with initial vector $v$. The detour through $\texttt{Hessenberg}$ lets us use the adjoint system of Hessenberg Factorization described in \ref{subsec:adjoint_hessenberg}. In this section we will inspect the adjoint system of $\overline{\texttt{Bidiagonalize}}_K$, and simplify it considerably by exploiting sparsity in $\dddot{A}, \dddot{v}, \dddot{Q}, \dddot{H}$ and $\dddot{r}$.
-\\ We will look at the constraints \eqref{eq:adjoint_hessenberg_constraint1} through \eqref{eq:adjoint_hessenberg_constraint4} and determine further sparsity patterns in the adjoint variables $\Lambda, \Gamma, \lambda, \gamma$. The following theorem summarizes the findings:
+\\[6pt]
+\noindent\textbf{Overview of the argument.}
+The derivation proceeds in four stages:
+\begin{enumerate}
+    \item The Hessenberg adjoint system (section \ref{subsec:adjoint_hessenberg}) provides recurrence relations \eqref{eq:get_gamma}, \eqref{eq:get_last_lambda}, \eqref{eq:get_Gamma_i}, \eqref{eq:get_lambda_i} for the adjoint variables $\Lambda, \Gamma, \lambda_0, \gamma$.
+    \item We state and prove a sparsity theorem (sections \ref{subsec:sparsity_gamma_lambda2K}--\ref{subsec:sparsity_Gamma_Lambda}): when these recurrences are instantiated on the augmented system $(\dddot{A}, \dddot{Q}, \dddot{H}, \dddot{r})$, the adjoint variables inherit an alternating block-zero structure.
+    \item The sparsity allows decomposing each $(N{+}M)$-dimensional adjoint vector into an $N$-part ($\phi_i$) and an $M$-part ($\xi_i$), and the $2K \times 2K$ matrix $\Gamma$ into two $K \times K$ lower-triangular matrices $\Omega$ and $\Sigma$.
+    \item Substituting these decompositions back into the Hessenberg recurrences and simplifying yields the compact stable bidiag adjoint system (section \ref{subsec:stable_adjoint_system}), which operates entirely in the original $N, M, K$ dimensions.
+\end{enumerate}
+\noindent We will look at the constraints \eqref{eq:adjoint_hessenberg_constraint1} through \eqref{eq:adjoint_hessenberg_constraint4} and determine further sparsity patterns in the adjoint variables $\Lambda, \Gamma, \lambda, \gamma$. The following theorem summarizes the findings:
 \begin{theorem}
     Let loss $\rho^\star(L, R, B, r, c) \in \mathbb{R}$ be a loss of the output of Bidiagonalization. Let $(A, v) := \texttt{augment}(A', v')$. Then, the adjoint variables $\Lambda \in \mathbb{R}^{(N+M) \times 2K}, \Gamma \in \mathbb{R}^{2K \times 2K}, \lambda_0 \in \mathbb{R}^{N+M}, \gamma \in \mathbb{R}^{2K} $ associated with a loss 
     $$\rho(A, v) := (\rho^\star \circ \texttt{extract} \circ \texttt{Hessenberg}_{2K})(A, v) \in \mathbb{R}$$ associated with are highly sparse. In addition to the constraints of the adjoint system given in \eqref{eq:adjoint_hessenberg_constraint1} - \eqref{eq:adjoint_hessenberg_constraint4}, for $i \in \{1, \dots, 2K\}$, they satisfy the sparsity relations
@@ -421,8 +455,8 @@ and the entries of $\lambda_0$ and $\gamma$ as
 $$\lambda_0 = \begin{bmatrix}
     \mathbf{0} & \xi_0
 \end{bmatrix}^\top \qquad \gamma = \begin{bmatrix}
-    \gamma_1 & 0 & \gamma_2 & 0 & \cdots & 0 & \gamma_K & 0
-\end{bmatrix}^\top$$ (TODO rename the inner gammas)
+    \eta_1 & 0 & \eta_2 & 0 & \cdots & 0 & \eta_K & 0
+\end{bmatrix}^\top \begin{array}{c}\text{ with }\\\text{ alias }\end{array} \; \eta := \begin{pmatrix}\eta_1 \\ \vdots \\ \eta_K\end{pmatrix} \in \mathbb{R}^K$$
 
 \subsubsection{Sparsity patterns of the input gradients.}
 The sparsity patterns of $\nabla_{\dddot{Q}} \rho$, $\nabla_{\dddot{H}} \rho$, and $\nabla_{\dddot{r}} \rho$ match those of $\dddot{Q}, \dddot{H}, \dddot{r}$, due to the linear nature of \texttt{extract}:
@@ -444,8 +478,179 @@ The sparsity patterns of $\nabla_{\dddot{Q}} \rho$, $\nabla_{\dddot{H}} \rho$, a
     0 & 0 & 0 & 0 & 0 & 0  & 0 & 0\\
     \end{bmatrix} \in \mathbb{R}^{2K \times 2K} \label{eq:nabla_H_sparsity_pattern}
 \end{align}
+The proof of this theorem is a backward induction on the sparsity patterns; we defer it to Appendix~\ref{app:sparsity_proofs} and proceed to use the result.
 
-\subsection{Inspecting the sparsity patterns of $\gamma$ and $\lambda_{2K}$}
+\subsection{The stable adjoint system}\label{subsec:stable_adjoint_system}
+Having established the sparsity of all adjoint variables, we now substitute the decompositions from the theorem back into the Hessenberg recurrences \eqref{eq:get_gamma}, \eqref{eq:get_last_lambda}, \eqref{eq:get_Gamma_i}, and \eqref{eq:get_lambda_i}. Each equation separates into independent $N$-block and $M$-block components due to the block-diagonal/block-off-diagonal structure of the augmented system. We treat each recurrence in turn.
+
+\subsubsection{Reducing the initialization}
+Recall from \eqref{eq:get_gamma} that $\gamma = \nabla_{\dddot{H}} \rho\, e_{2K} - \dddot{Q}^\top \nabla_{\dddot{r}} \rho$. We have already computed in section~\ref{subsec:sparsity_gamma_lambda2K} that
+\begin{align*}
+    \gamma &= \begin{pmatrix}0 & 0 & \cdots & 0 & \nabla_{\alpha_K} \rho & 0\end{pmatrix}^\top
+    - 
+    \begin{pmatrix}r_1^\top \nabla_r\rho & 0 & r_2^\top \nabla_r\rho & 0 & \cdots & r_K^\top \nabla_r\rho & 0\end{pmatrix}^\top
+\end{align*}
+Extracting the odd-indexed entries gives $\eta \in \mathbb{R}^K$ with
+\begin{align}
+    \eta_n &= -r_n^\top \nabla_r\rho \text{\quad for $n < K$}, \qquad \eta_K = \nabla_{\alpha_K}\rho - r_K^\top \nabla_r\rho \label{eq:stable_eta}
+\end{align}
+or equivalently $\eta = -R^\top \nabla_r \rho + \nabla_{\alpha_K}\rho\, e_K$.
+Similarly, from \eqref{eq:get_last_lambda}, $\lambda_{2K} = \nabla_{\dddot{r}} \rho + \dddot{Q} \gamma$. The $M$-block (extracting the lower half) gives
+\begin{align}
+    \xi_K &= \nabla_r \rho + R\eta \label{eq:stable_xi_K}
+\end{align}
+where we used that $\dddot{Q}\gamma$ restricted to the $M$-block is $\sum_{n=1}^K r_n \eta_n = R\eta$.
+
+\subsubsection{Reducing the reprojection constraints}
+The key identity from section~\ref{subsec:solving_adjoint_system} is \eqref{eq:get_lambda_in_Q_coords}: $I_{\geq} \circ \dddot{Q}^\top \Lambda = I_{\geq} \circ \nabla_{\dddot{H}} \rho$.
+Using the block structures of $\dddot{Q}$ and $\Lambda$:
+\begin{align*}
+    \dddot{Q}^\top \Lambda &= \begin{bmatrix}
+    0 & l_1^\top \phi_1 & 0 & l_1^\top \phi_2 & \cdots \\
+    r_1^\top \xi_1 & 0 & r_1^\top \xi_2 & 0 & \cdots \\
+    0 & l_2^\top \phi_1 & 0 & l_2^\top \phi_2 & \cdots \\
+    r_2^\top \xi_1 & 0 & r_2^\top \xi_2 & 0 & \cdots \\
+    \vdots & & & & \ddots
+    \end{bmatrix}
+\end{align*}
+The odd-odd block of $I_\geq \circ \dddot{Q}^\top \Lambda$ (rows $2n{-}1$, columns $2m{-}1$) contains $r_n^\top \xi_m$ for $n \leq m$, and the even-even block (rows $2n$, columns $2m$) contains $l_n^\top \phi_m$ for $n \leq m$.
+Matching with $I_\geq \circ \nabla_{\dddot{H}} \rho$, whose even-even block has $\nabla_{\beta_n}\rho$ at position $(n, n{+}1)$ and zeros elsewhere, and whose odd-odd block has $\nabla_{\alpha_n}\rho$ at position $(n, n)$ and zeros elsewhere, we obtain the reprojection constraints:
+\begin{align}
+    I_{\geq} \circ (L^\top \Phi) &= \text{diag}(\nabla_{\boldsymbol{\beta}}\rho,\; k\!=\!1) \label{eq:stable_reprojection_L}
+    \\
+    I_{\geq+1} \circ (R^\top \Xi) &= \text{diag}(\nabla_{\boldsymbol{\alpha}}\rho) \label{eq:stable_reprojection_R}
+\end{align}
+where $I_{\geq+1}$ denotes the mask with $[\delta_{i \leq j+1}]_{i,j}$, reflecting the one-index offset between the $R$ and $L$ constraints. The remaining entries of the $\Gamma$ recurrence \eqref{eq:get_Gamma_i} build up $\Sigma + \Sigma^\top$ and $\Omega + \Omega^\top$ column by column, following the same backward loop as in the general Hessenberg case (see Example~\ref{ex:construction_Gamma_Gamma_top}), but now restricted to the $K \times K$ even-even and odd-odd blocks independently.
+
+\subsubsection{Reducing the $\Lambda$ recurrence}
+The recurrence \eqref{eq:get_lambda_i} reads $h_{i,i-1}\lambda_{i-1} = \nabla_{\dddot{q}_i}\rho + \dddot{A}^\top \lambda_i - \sum_{j=i}^{2K} h_{ij}\lambda_j + \dddot{Q}(\Gamma + \Gamma^\top)e_i + \dddot{r}\,\gamma^\top e_i$ for $i > 1$, and $-\lambda_0 = (\cdots)$ for $i=1$.
+\\[4pt]
+\noindent\textit{Even $i = 2n$.} The LHS is $\alpha_n \lambda_{2n-1}$, whose nonzero part is the $N$-block $\alpha_n \phi_n$. Extracting the $N$-block of each RHS term:
+\begin{align*}
+    \nabla_{\dddot{q}_{2n}} \rho &\to \nabla_{l_n}\rho
+    &
+    \dddot{A}^\top \lambda_{2n} &\to A\xi_n
+    \\
+    h_{2n,2n+1}\lambda_{2n+1} &\to \beta_n \phi_{n+1}
+    &
+    \dddot{Q}(\Gamma + \Gamma^\top)e_{2n} &\to L(\Sigma + \Sigma^\top) e_n
+\end{align*}
+The term $\dddot{r}\,\gamma^\top e_{2n} = \mathbf{0}$ since $\gamma$ is zero in even entries. Dividing by $\alpha_n$ and collecting all columns:
+\begin{align}
+    0 &= \nabla_L + A\Xi - \Phi B^\top + L(\Sigma + \Sigma^\top) \label{eq:stable_Phi_recurrence}
+\end{align}
+\noindent\textit{Odd $i = 2n{-}1$.} The LHS is $\beta_{n-1}\lambda_{2n-2}$ (for $n > 1$) or $-\lambda_0$ (for $n = 1$), whose nonzero part is the $M$-block: $\beta_{n-1}\xi_{n-1}$ or $-\xi_0 = -\kappa$. Extracting the $M$-block of each RHS term:
+\begin{align*}
+    \nabla_{\dddot{q}_{2n-1}} \rho &\to \nabla_{r_n}\rho
+    &
+    \dddot{A}^\top \lambda_{2n-1} &\to A^\top \phi_n
+    \\
+    h_{2n-1,2n}\lambda_{2n} &\to \alpha_n \xi_n
+    &
+    \dddot{Q}(\Gamma + \Gamma^\top)e_{2n-1} &\to R(\Omega + \Omega^\top) e_n
+\end{align*}
+The term $\dddot{r}\,\gamma^\top e_{2n-1} = \dddot{r}\,\eta_n$, whose $M$-block is $\text{res}\;\eta_n$ (using $\dddot{r} = [\mathbf{0};\, \text{res}]$). The $n=1$ boundary contributes $\kappa\, e_1^\top$. Collecting:
+\begin{align}
+    0 &= \nabla_R + A^\top \Phi - \Xi B + R(\Omega + \Omega^\top) + \kappa\, e_1^\top + \text{res}\;\eta^\top \label{eq:stable_Xi_recurrence}
+\end{align}
+
+\subsubsection{Reducing the gradient formulas}
+From \eqref{eq:adjoint_hessenberg_constraint5}, $\nabla_{\dddot{A}}\rho = \Lambda \dddot{Q}^\top$. This is an $(N{+}M) \times (N{+}M)$ matrix. Its $(1,2)$-block (the $N \times M$ part corresponding to $\nabla_A\rho$) is
+\begin{align*}
+    \nabla_A\rho &= \sum_{n=1}^K \phi_n \cdot r_n^\top + l_n \cdot \xi_n^\top
+\end{align*}
+which follows from the alternating structure: odd columns of $\Lambda$ contribute $\phi_n$ (in the $N$-block) paired with $r_n^\top$ (from odd rows of $\dddot{Q}^\top$), and even columns contribute $\xi_n$ paired with $l_n$. In compact form:
+\begin{align}
+    \nabla_A\rho &= \Phi R^\top + L\Xi^\top \label{eq:stable_grad_A}
+\end{align}
+From \eqref{eq:adjoint_hessenberg_constraint6}, $\nabla_{\dddot{v}}\rho = -c\lambda_0 = -c\begin{pmatrix}\mathbf{0} \\ \kappa\end{pmatrix}$, so extracting the $M$-block:
+\begin{align}
+    \nabla_v\rho &= -c\kappa \label{eq:stable_grad_v}
+\end{align}
+From \eqref{eq:adjoint_hessenberg_constraint4}, $\nabla_c\rho = \dddot{v}^\top\lambda_0$. Using $\dddot{v} = \begin{pmatrix}\mathbf{0} \\ v\end{pmatrix}$ and $\lambda_0 = \begin{pmatrix}\mathbf{0} \\ \kappa\end{pmatrix}$:
+\begin{align}
+    \nabla_c\rho = v^\top \kappa = \frac{r_1^\top \kappa}{c} \qquad \iff \qquad c\nabla_c\rho = r_1^\top \kappa \label{eq:stable_grad_c}
+\end{align}
+where we used $r_1 = cv$ from the primal constraint \eqref{eq:bidiag_forward_constraint3}.
+
+\subsubsection{Collected result}
+Bringing together \eqref{eq:stable_eta}--\eqref{eq:stable_grad_c}, the stable adjoint system for Bidiagonalization is:
+\begin{mdframed}
+\begin{align}
+    \eta &= -R^\top \nabla_r \rho + \nabla_{\alpha_K}\rho\, e_K \label{eq:stable_system_eta}
+    \\
+    \xi_K &= \nabla_r \rho + R\eta \label{eq:stable_system_xi_K}
+    \\
+    c\nabla_c\rho &= r_1^\top \kappa \label{eq:stable_system_c}
+    \\
+    0 &= \nabla_L + A\Xi - \Phi B^\top + L(\Sigma + \Sigma^\top) \label{eq:stable_system_Phi}
+    \\
+    0 &= \nabla_R + A^\top\!\Phi - \Xi B + R(\Omega + \Omega^\top) + \kappa\, e_1^\top + \text{res}\;\eta^\top \label{eq:stable_system_Xi}
+    \\
+    I_{\geq} \circ (L^\top \Phi) &= \text{diag}(\nabla_{\boldsymbol{\beta}}\rho,\; k\!=\!1) \label{eq:stable_system_reprojL}
+    \\
+    I_{\geq+1} \circ (R^\top \Xi) &= \text{diag}(\nabla_{\boldsymbol{\alpha}}\rho) \label{eq:stable_system_reprojR}
+    \\
+    \nabla_v\rho &= -c\kappa \label{eq:stable_system_grad_v}
+    \\
+    \nabla_A\rho &= \Phi R^\top + L\Xi^\top \label{eq:stable_system_grad_A}
+\end{align}
+\end{mdframed}
+\noindent This system is solved by the same backward loop as the general Hessenberg adjoint (section~\ref{subsec:solving_adjoint_system}), but operating entirely in the original dimensions: $\Phi, \Xi \in \mathbb{R}^{N \times K}$ and $\mathbb{R}^{M \times K}$ respectively, with $\Omega, \Sigma \in \mathbb{R}^{K \times K}$ lower triangular. The reprojection constraints \eqref{eq:stable_system_reprojL}--\eqref{eq:stable_system_reprojR} provide the numerical stability mechanism: they give an explicit target for $L^\top \phi_n$ and $R^\top \xi_n$ in known coordinates, enabling the reprojection correction described in section~\ref{sec:reprojection}.
+
+\section{Numerical stability}\label{sec:stability}
+Because Hessenberg factorization subsumes Bidiagonalization for the augmented input, the stability of the Hessenberg adjoint \citep{kraemer2024gradients} comes along with it. The mechanism is reprojection, which we describe next.
+
+\subsection{Reprojection and reorthonormalization}\label{sec:reprojection}
+Let $m$ be a mask vector with entries from $\{0, 1\}$. Let $L$ be an orthonormal matrix, and $q$ and $c$ be vectors. Consider a constraint of the form
+$$m \circ (L^\top q) = m \circ c$$
+that is, within the bounds of the mask $m$, the vector $q$ expressed in the basis of $L$ equals $c$.
+Given a numerical estimate $q_0$ of a solution $q$, we get an improved estimate $q_1$ by \textit{reprojecting} it against $L$:
+\begin{align*}
+    q_0 &= q_0 - L (m \circ L^\top q_0) + L (m \circ L^\top q_0)
+    \\
+    &= q_0 - L (m \circ L^\top q_0) + L (m \circ c)
+\end{align*}
+which motivates the update step, repeated if necessary,
+\begin{align*}
+    q_1 &\leftarrow q_0 - L (m \circ L^\top q_0) + L (m \circ c)
+\end{align*}
+For Hessenberg factorization the relevant constraint is $Q^\top q_i = e_i$ \eqref{eq:hessenberg_forward_constraint3}, and the reprojection step followed by normalization is what we call \textit{reorthonormalization}. For Bidiagonalization, the analogous constraints are $L^\top l_i = e_i$ \eqref{eq:bidiag_forward_constraint4} and $R^\top r_i = e_i$ \eqref{eq:bidiag_forward_constraint5}. Empirically, two repetitions of the reprojection step are needed to eliminate numerical errors; with reprojection in place, the adjoint stays accurate across matrix sizes (Figure~\ref{fig:stability}).
+
+\section{Experiments}\label{sec:experiments}
+All methods are implemented in JAX~\citep{jax2018github}. We compare three ways of differentiating Bidiagonalization: reverse-mode automatic differentiation through the unrolled iteration (\textit{autodiff}), the stable adjoint derived above (\textit{adjoint}), and, as a reference, the forward pass on its own. We also compare against the augmented Hessenberg formulation. Unless stated otherwise, the matrix is dense and accessed through a diagonal matrix-vector product, computations use single precision, and timings are averaged over repeated runs after compilation. The hardware and software configuration is recorded alongside the raw measurements.
+
+\begin{figure}[t]
+    \centering
+    \includegraphics[width=0.7\linewidth]{fig_compile_time.pdf}
+    \caption{Compile time of the forward pass, the stable adjoint, and reverse-mode autodiff as a function of the Krylov-space depth $k$. The adjoint compiles in time comparable to the forward pass, whereas autodiff is consistently more expensive.}
+    \label{fig:compile}
+\end{figure}
+
+\begin{figure}[t]
+    \centering
+    \includegraphics[width=0.7\linewidth]{fig_backward_time.pdf}
+    \caption{Wall-clock time of the backward pass against problem size. The adjoint stays close to the forward pass; the autodiff curve simply ends where it ran out of memory.}
+    \label{fig:backward}
+\end{figure}
+
+\begin{figure}[t]
+    \centering
+    \includegraphics[width=0.7\linewidth]{fig_stability.pdf}
+    \caption{Gradient error against matrix size. Autodiff drifts as the matrix grows, and turns into NaNs once it differentiates through reorthonormalization; the adjoint stays accurate throughout.}
+    \label{fig:stability}
+\end{figure}
+
+Compile time tells the simplest story (Figure~\ref{fig:compile}): the adjoint stays within a small factor of the forward pass, while autodiff keeps getting more expensive because it has to trace the whole unrolled iteration. Run time looks the same, with one extra wrinkle---autodiff eventually exhausts memory and stops, whereas the adjoint keeps going to much larger problems (Figure~\ref{fig:backward}). The accuracy gap is the widest of the three. As the matrix grows the adjoint tracks the true gradient to roughly seven orders of magnitude, while autodiff slowly drifts; and once the forward reorthonormalization itself is differentiated through, autodiff returns NaNs and is unusable (Figure~\ref{fig:stability}).
+
+\section{Conclusion}
+By viewing bidiagonalization as a Hessenberg factorization of an augmented symmetric matrix, we obtained a stable adjoint for it almost for free, and pruning the augmented system's zeros brought the cost back down to that of the original problem. The adjoint needs nothing beyond matrix-vector products and a reprojection step, and in our experiments it was the only one of the three methods that stayed both cheap and accurate at the larger sizes. The same augment-then-prune recipe should carry over to other structured factorizations that embed into a Hessenberg or symmetric Lanczos form; we leave that to future work.
+
+\appendix
+\section{Sparsity proofs}\label{app:sparsity_proofs}
+This appendix proves the sparsity theorem of section~\ref{subsec:derivation_stable_adjoint_system}.
+
+\subsection{Inspecting the sparsity patterns of $\gamma$ and $\lambda_{2K}$}\label{subsec:sparsity_gamma_lambda2K}
 This section proves the statements $$\gamma \preceq \begin{bmatrix} * & 0 & * & 0 & \cdots & 0 & * & 0 \end{bmatrix}^\top$$ and $$\lambda_{2K} \preceq \big[\overbrace{0 \;\; 0 \;\; \cdots \;\; 0}^{N} \;\; \overbrace{* \;\; * \;\; \cdots \;\; *}^{M}\big] ^\top$$
 Starting from \eqref{eq:get_gamma}, replacing $K$ with $2K$, we plug in our sparse gradients and sparse outputs:
 \begin{align}
@@ -466,7 +671,7 @@ This shows that $\gamma \in \mathbb{R}^{2K}$ is alternatingly non-zero and zero,
     &= \begin{pmatrix}0 \!&\! 0 \!&\! \cdots \!&\! 0 \!&\! * \!&\! * \!&\! \cdots \!&\! *\end{pmatrix}^\top \label{eq:lambda_2K_sparsity_pattern}
 \end{align}
 This shows that $\lambda_{2K} \in \mathbb{R}^{N+M}$ is $0$ in the leading $N$ entries, which also held true for the input vector $\dddot{v}$.
-\subsection{Sparsity patterns of $\Gamma^\top$ and $\Lambda$}
+\subsection{Sparsity patterns of $\Gamma^\top$ and $\Lambda$}\label{subsec:sparsity_Gamma_Lambda}
 This section proves the remainder of the theorem, namely that
 $$\begin{array}{rrll}
     \text{For even $i$: }& \quad\quad \Bigg(\Lambda e_i \preceq& \big[\overbrace{0 \;\; 0 \;\; \cdots \;\; 0}^{N} \;\; \overbrace{* \;\; * \;\; \cdots \;\; *}^{M}\big] ^\top\Bigg) & =: P_\Lambda(i)
@@ -585,7 +790,7 @@ As can be seen, even columns of $\Gamma^\top$ are exactly zero in the odd entrie
     \\
     &= I_{\geq}e_i \circ \begin{bmatrix} * & 0 & * & 0 & \cdots & * & 0\end{bmatrix} 
 \end{align*}
-In this case, the the odd columns are exactly zero for the even entries. Thus we have proven TODO INSERT NAME OF STATEMENT
+In this case, the odd columns of $\Gamma^\top$ are exactly zero for the even entries. This proves $P_\Lambda(i) \implies P_\Gamma(i)$.
 
 
 \subsection{Showing $\bigwedge_{j=i}^{2K} \big(P_\Gamma(j) \big) \!\!\implies P_\Lambda(i-1)$}
@@ -675,9 +880,12 @@ And for odd $i$:
     \\
     &\preceq \begin{bmatrix} 0 & 0 & \cdots &  0 & * & * &\cdots & *\end{bmatrix} ^\top
 \end{align*}
-Recall that $h_{i, i-1}$ is nonzero (see section \ref{sec:bidiag_through_hessenberg}). By reindexing $\lambda_i$, this gives the result.
+Recall that $h_{i, i-1}$ is nonzero (see section \ref{sec:bidiag_through_hessenberg}). Dividing by $h_{i,i-1}$ preserves the sparsity pattern, so $P_\Lambda(i-1)$ holds. Together with the base case $P_\Lambda(2K)$ established in section \ref{subsec:sparsity_gamma_lambda2K}, the backward induction is complete, and the theorem is proven. \qed
 
-\subsection{Columnwise expanded unstable adjoint}
+\section{Alternative derivations}\label{app:alt}
+For completeness, we record the classic forward constraints of Bidiagonalization and the associated adjoint system written out column by column. These are equivalent to the stable system of section~\ref{subsec:stable_adjoint_system} but are stated directly in the original coordinates rather than derived through the augmented Hessenberg detour.
+
+\subsection{Columnwise expanded unstable adjoint}\label{app:columnwise}
 Define $b_n\lambda_{n+1} := \mathbf{0}$ and $b_0\rho_0:=\mathbf{0}$
 \begin{align}
 0 &= \nabla l_n + a_n\lambda_n + b_n\lambda_{n+1} - A\rho_n + l_n\sigma_n
@@ -697,11 +905,7 @@ Define $b_n\lambda_{n+1} := \mathbf{0}$ and $b_0\rho_0:=\mathbf{0}$
 \nabla A &= \sum_{n=1}^k -\lambda_n r_n^\top -l_n\rho_n^\top
 \end{align}
 
-\subsection{Hessenberg factorization has stable adjoint because of reprojection}
-Some of the constraints of the adjoint system in Hessenberg factorization allow for a direct correction of drift \footnote{cite equation 13b}.
-Because Hessenberg factorization subsumes Bidiagonalization for this specific structured input, we can use their implementation of numerically stable gradients to differentiate bidiagonalization.
-
-\subsection{Unstable Primal constraints}
+\subsection{Unstable primal constraints}
 Define $l_{0}b_{0} := 0$ and $res := r_{k+1} b_k $
 \begin{align*}
     r_1 &= c\tilde r
@@ -714,12 +918,10 @@ Define $l_{0}b_{0} := 0$ and $res := r_{k+1} b_k $
     \\
     \langle r_i, r_i \rangle &= 1 \text{ for } i \in {1 \dots k}
 \end{align*}
-Symbolically, we can\footnote{proof by induction. Add?} show that these constraints, if satisfied, imply $\langle l_i, l_j \rangle =\delta_{i,j}$ and $\langle r_i, r_j \rangle =\delta_{i,j}$. In practice however, we need to reorthonormalize the produced vectors during iteration.
-\\
-These "classic" forward constraints and the associated adjoint system:
-\subsection{Unstable Adjoint system}
-\footnote{See another subsection for the same things all expanded columnwise}
-This system can be derived from the bidiagonalization forward constraints directly.
+Symbolically, one can show by induction that these constraints, if satisfied, imply $\langle l_i, l_j \rangle =\delta_{i,j}$ and $\langle r_i, r_j \rangle =\delta_{i,j}$. In practice however, we need to reorthonormalize the produced vectors during iteration. These classic forward constraints give rise to the adjoint system below.
+
+\subsection{Unstable adjoint system}
+This system can be derived from the bidiagonalization forward constraints directly; the columnwise form appears in section~\ref{app:columnwise}.
 \begin{align}
 \rho_k &= - \nabla res
 \\
@@ -738,79 +940,7 @@ c \nabla c &= r_1^\top\kappa
 \nabla A &= \sum_{n=1}^k -\lambda_n r_n^\top -l_n\rho_n^\top
 \end{align}
 
-\subsection{Stable Adjoint System}
-
-\begin{align}
-    \xi_k &= \nabla_{res} + R \gamma
-    \\
-    r_1^\top \kappa &= c\nabla_c
-    \\
-    0 &= \nabla_L + A\Xi - \Phi B^\top + L(\Sigma + \Sigma^\top)
-    \\
-    0 &= \nabla_R + A^\top\!\!\Phi - \Xi B + R(\Omega + \Omega^\top) + \kappa e_1^\top + res \gamma^\top
-    \\
-    \langle l_i, \phi_j \rangle &= \nabla \beta_{i-1} e_{i-1} \text{  for } i\leq j
-    \\
-    \langle r_i, \xi_j \rangle &= \nabla \alpha_{i} e_{i} \text{  for } i\leq j+1
-    \\
-    \nabla_v &= -\kappa c
-    \\
-    \nabla_A &= \sum_{i=1}^k l_i \xi_i^\top + \phi_i r_i^\top
-\end{align}
-
-\subsection{The Adjoint Method to compute gradients}
-The adjoint method provides an elegant way to compute parameter gradients of losses that depend on outputs of parameterized numerical solvers.
-\\
-\\
-Let $s : \theta \mapsto x$ be a numerical solver that yields a solution $x$ to some problem $\theta$, with $\text{dim}(\theta) = P$ and $\text{dim}(x) = X$. Assume also that we know an associated constraint function $c : x \mapsto \mathbb{R}^X$ that evaluates all the constraints of the problem, for which $c(s(\theta), \theta) = \mathbf{0}$ for all $\theta$. Additionally, require that $\frac{\partial c}{\partial \theta}$ is everywhere nonsingular. Assume also that we have a loss function $\ell : x \mapsto \mathbb{R}$ that depends on the solution $x$ of the problem. We are interested in $\nabla_\theta \ell(s(\theta))$, the gradient of $\ell$ with respect to the parameters $\theta$.
-\begin{example}[Hessenberg Factorization]
-    A fitting example would be $s = $ \texttt{Hessenberg}, which implies that $\theta = (A, v)$ and $x = (Q, H, r, c)$. The associated constraint function would be the concatenation of constraints \eqref{eq:hessenberg_forward_constraint1} through \eqref{eq:hessenberg_forward_constraint5}. We see that, for this example, $c(x, \theta) = \mathbf{0}$ for all solutions $(Q, H, r, c)$ if and only if they correctly Hessenberg-factorize from $\theta$ = $(A, v)$.
-\end{example}
-Because $c(s(\theta), \theta) = \mathbf{0}$ is constantly zero, the total derivative $\frac{d}{d\theta} c$ is also zero. With the chain rule, we have:
-
-\begin{align}
-    \mathbf{0} = \frac{d}{d\theta} c(s(\theta), \theta) = \frac{\partial c}{\partial s} \frac{\partial s}{\partial \theta} + \frac{\partial c}{\partial \theta}
-    \implies \frac{\partial c}{\partial s} \frac{\partial s}{\partial \theta} = -\frac{\partial c}{\partial \theta} \label{eq:exploit_constraint}
-\end{align}
-The adjoint method will exploit this relationship. We apply the chain rule to compute the gradient $\nabla_\theta \ell(s(\theta))$:
-\begin{align}
-    \nabla_\theta \ell(s(\theta)) = \frac{\partial s}{\partial \theta}^\top\nabla_x \ell(s(\theta))  \label{eq:gradient_chain_rule}
-\end{align}
-We assume that $\nabla_x \ell(s(\theta))$ is easy to obtain. The challenge is computing $\frac{\partial s}{\partial \theta} \in \mathbb{R}^{X \times P}$, which can be expensive for high-dimensional $x$. Suppose we can find \textit{adjoint variables} $\boldsymbol{\lambda} \in \mathbb{R}^X$ solving the uniquely determined $X \times X$ linear system (unique by initial assumption on the constraint Jacobian)
-\begin{align}
-    \nabla_x \ell(s(\theta)) = \frac{\partial c}{\partial s}^\top \boldsymbol{\lambda}  \label{eq:adjoint_system}
-\end{align}
-Then, substituting this into \eqref{eq:gradient_chain_rule} yields:
-\begin{align*}
-    \nabla_\theta \ell(s(\theta)) = \frac{\partial s}{\partial \theta}^\top \frac{\partial c}{\partial s}^\top \boldsymbol{\lambda} = \left(\frac{\partial c}{\partial s} \frac{\partial s}{\partial \theta}\right)^\top \boldsymbol{\lambda} \overset{\eqref{eq:exploit_constraint}}{=} -\frac{\partial c}{\partial \theta}^\top \boldsymbol{\lambda}
-\end{align*}
-The adjoint method provides significant computational savings compared to the standard approach. To see this, consider the two approaches:
-
-\textit{Forward approach:} Compute $\frac{\partial s}{\partial \theta} \in \mathbb{R}^{X \times P}$ directly by solving $P$ linear systems of size $X \times X$ (one for each parameter), then compute the gradient via \eqref{eq:gradient_chain_rule}. Total cost: $O(PX^3)$ operations.
-
-\textit{Adjoint approach:} Solve one linear system \eqref{eq:adjoint_system} of size $X \times X$ to find $\boldsymbol{\lambda}$, then evaluate $-\frac{\partial c}{\partial \theta}^\top \boldsymbol{\lambda}$. Total cost: $O(X^3 + XP)$ operations.
-
-When $P \ll X$ (few parameters, high-dimensional state), the adjoint method is dramatically more efficient: $O(X^3)$ versus $O(PX^3)$. This advantage becomes crucial in applications like neural network training or PDE-constrained optimization where $X$ can be very large.
-
-\section{Numerical Stability and Experiments}
-\subsection{Reprojection and Reorthonormalization}
-Let $m$ be a mask vector with entries from $\{0, 1\}$. Let $L$ be an orthonormal matrix, and $q$ and $c$ be vectors. Consider a constraint of the form
-$$m \circ (L^\top q) = m \circ c$$
-Paraphrased: "Within the bounds of the mask $m$, we have that $q$ expressed in the basis of $L$ equals $c$".
-If we have access to a numerical estimate $q_0$ of a solution $q$, we can get an improved estimate $q_1$ by \textit{reprojecting} it against $L$.
-\begin{align*}
-    q_0 &= q_0 - L (m \circ L^\top q_0) + L (m \circ L^\top q_0)
-    \\
-    &= q_0 - L (m \circ L^\top q_0) + L (m \circ c)
-\end{align*}
-The following motivates following update step, which can be repeated if necessary.
-\begin{align*}
-    q_1 &\leftarrow q_0 - L (m \circ L^\top q_0) + L (m \circ c)
-\end{align*}
-In the case of Hessenberg factorization, we have the constraint
-$Q^\top q_i = e_i$ \eqref{eq:hessenberg_forward_constraint3} in which case we call the reprojection step followed by normalization \textit{reorthonormalization}.
-\\
-For Bidiagonalization, we have similar constraints $L^\top l_i = e_i$ \eqref{eq:bidiag_forward_constraint4} and $R^\top r_i = e_i$ \eqref{eq:bidiag_forward_constraint5}. Empirically, we find that two repetitions of the reprojection step are necessary to eliminate numerical errors. (TODO show this on a Hilbert matrix?)
-
+\bibliographystyle{plainnat}
+\bibliography{references}
 
 \end{document}
