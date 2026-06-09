@@ -615,7 +615,14 @@ which motivates the update step, repeated if necessary,
 \begin{align*}
     q_1 &\leftarrow q_0 - L (m \circ L^\top q_0) + L (m \circ c)
 \end{align*}
-For Hessenberg factorization the relevant constraint is $Q^\top q_i = e_i$ \eqref{eq:hessenberg_forward_constraint3}, and the reprojection step followed by normalization is what we call \textit{reorthonormalization}. For Bidiagonalization, the analogous constraints are $L^\top l_i = e_i$ \eqref{eq:bidiag_forward_constraint4} and $R^\top r_i = e_i$ \eqref{eq:bidiag_forward_constraint5}. Empirically, two repetitions of the reprojection step are needed to eliminate numerical errors; with reprojection in place, the adjoint stays accurate across matrix sizes (Figure~\ref{fig:stability}).
+For Hessenberg factorization the relevant constraint is $Q^\top q_i = e_i$ \eqref{eq:hessenberg_forward_constraint3}, and the reprojection step followed by normalization is what we call \textit{reorthonormalization}. For Bidiagonalization, the analogous constraints are $L^\top l_i = e_i$ \eqref{eq:bidiag_forward_constraint4} and $R^\top r_i = e_i$ \eqref{eq:bidiag_forward_constraint5}. Empirically, two repetitions of the reprojection step are needed to eliminate numerical errors; with reprojection in place, the adjoint stays accurate across matrix sizes (Figure~\ref{fig:stability}). Figure~\ref{fig:reprojection} isolates this effect: as the problem size grows, the adjoint without reprojection drifts away from the identity Jacobian of matrix reconstruction, while the reprojection-corrected adjoint remains accurate.
+
+\begin{figure}[t]
+    \centering
+    \includegraphics[width=0.7\linewidth]{fig_reprojection.pdf}
+    \caption{Loss of accuracy in the bidiagonalization adjoint. We bidiagonalize a dense random $n \times (n/2)$ matrix with $k=n/2$ steps, reconstruct $LBR^\top$, and measure the RMS error $\|\nabla_A(LBR^\top) - I\|_{\mathrm{rms}}$ (the Jacobian should be the identity). Without the reprojection step in the backward pass (solid red), accuracy degrades as $n$ grows; with reprojection (dashed green), it stays near machine precision.}
+    \label{fig:reprojection}
+\end{figure}
 
 \section{Experiments}\label{sec:experiments}
 All methods are implemented in JAX~\citep{jax2018github}. We compare three ways of differentiating Bidiagonalization: reverse-mode automatic differentiation through the unrolled iteration (\textit{autodiff}), the stable adjoint derived above (\textit{adjoint}), and, as a reference, the forward pass on its own. We also compare against the augmented Hessenberg formulation. Unless stated otherwise, the matrix is dense and accessed through a diagonal matrix-vector product, computations use single precision, and timings are averaged over repeated runs after compilation. The hardware and software configuration is recorded alongside the raw measurements.

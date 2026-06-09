@@ -1,6 +1,7 @@
 import dataclasses
+import os
+from collections.abc import Callable
 from typing import Literal
-from algo_bidiag import bidiagonalize as bidiagonalize
 
 import jax
 import jax.flatten_util
@@ -8,7 +9,8 @@ import jax.numpy as jnp
 import matplotlib.pyplot as plt
 import tqdm
 from tueplots import axes, figsizes, fontsizes
-import os
+
+from algo_bidiag import bidiagonalize as bidiagonalize
 from algo_hessenberg import hessenberg
 
 
@@ -49,25 +51,40 @@ hess_adjoint_rep = Config(algo="Hess", adjoint=True, reortho=True, reproj_adj="m
 bidi_adjoint_rep = Config(algo="Bidi", adjoint=True, reortho=True, reproj_adj="match")
 
 
-def run_experiment(configuration):
+def run_experiment(
+    configuration,
+    *,
+    ns: jnp.ndarray,
+    matrix_fn: Callable[[int], jnp.ndarray],
+    xlabel: str,
+    ylabel: str,
+    style_overrides: dict[Config, dict] | None = None,
+    width_fn: Callable[[int], int] | None = None,
+    num_matvecs_fn: Callable[[int, int], int] | None = None,
+    dtype=jnp.float64,
+):
+    if width_fn is None:
+        width_fn = lambda n: n
+    if num_matvecs_fn is None:
+        num_matvecs_fn = lambda _n, width: width
+
     fig, ax = plt.subplots(figsize=(5, 3.2))
 
     for config, label in tqdm.tqdm(configuration[1].items(), desc="Testing setups"):
-        ns = jnp.arange(4, 40, step=3)
         reconstruct_loss = []
         jacobian_loss = []
 
         for n in tqdm.tqdm(ns, desc=f"Testing {label}", leave=False):
             height = int(n)
-            width = height  # height // 2  #  + height // 4
-            A = hilbert_matrix(height)[:, :width]
-            A = jax.random.normal(key_A, shape=(n, width))
-            v = jax.random.normal(key_v, shape=(width,))
+            width = int(width_fn(height))
+            num_matvecs = int(num_matvecs_fn(height, width))
+            A = matrix_fn(height)[:, :width].astype(dtype)
+            v = jax.random.normal(key_v, shape=(width,)).astype(dtype)
             flat, unflatten = jax.flatten_util.ravel_pytree(A)
 
             if config.algo == "Bidi":
                 bd_func = bidiagonalize(
-                    num_matvecs=width,
+                    num_matvecs=num_matvecs,
                     custom_vjp=config.adjoint,
                     reorthogonalize=config.reortho,
                     also_reorthogonalize_vjp=(config.reproj_adj == "match"),
@@ -96,12 +113,8 @@ def run_experiment(configuration):
                     upper, lower = jnp.split(v0, [height])
                     return jnp.concat((A @ lower, A.T @ upper))
 
-                v_aug = jnp.concat([jnp.zeros(height), v])
+                v_aug = jnp.concat([jnp.zeros(height, dtype=dtype), v])
 
-                # In `hessenberg`, `reortho_vjp` drives the forward
-                # reorthonormalization and `reortho` drives the adjoint
-                # reprojection (see algo_hessenberg). Map our config onto the
-                # right string-valued arguments.
                 forward_reortho = "full" if config.reortho else "none"
                 adjoint_reortho = config.reproj_adj if config.reproj_adj else "none"
                 hess_func = hessenberg(
@@ -115,31 +128,28 @@ def run_experiment(configuration):
                 def decompose_reconstruct(x):
                     a = unflatten(x)
 
-                    result = hess_func(matvec_sym, (n, width), v_aug, a)
+                    result = hess_func(matvec_sym, (height, width), v_aug, a)
                     rlrlrl = result.Q_tall
-                    ls = rlrlrl[:n, 1::2]
-                    rs = rlrlrl[n:, 0::2]
+                    ls = rlrlrl[:height, 1::2]
+                    rs = rlrlrl[height:, 0::2]
                     ababab = (
                         jnp.diag(result.J_small, k=1) + jnp.diag(result.J_small, k=-1)
                     ) / 2
                     alphas = ababab[::2]
                     betas = ababab[1::2]
-                    # res = result.residual[height:]
 
                     B = jnp.diag(alphas) + jnp.diag(betas, k=1)
                     return jax.flatten_util.ravel_pytree(ls @ B @ rs.T)[0]
 
+            eye = jnp.eye(len(flat), dtype=dtype)
+
             if configuration[0] == "rec":
-                # The norm of the input vs the output should be zero if it faithfully reconstructs.
                 decomposition_diff = flat - decompose_reconstruct(flat)
                 reconstruct_error = jnp.sqrt(jnp.mean(decomposition_diff**2))
                 reconstruct_loss.append(reconstruct_error.item())
 
             elif configuration[0] == "jac":
-                # The jacobian of the identity function should be a diagonal matrix with all 1s - the identity matrix.
-                jacobian_diff = jnp.eye(len(flat)) - jax.jacrev(decompose_reconstruct)(
-                    flat
-                )
+                jacobian_diff = eye - jax.jacrev(decompose_reconstruct)(flat)
                 jacobian_error = jnp.sqrt(jnp.mean(jacobian_diff**2))
                 jacobian_loss.append(jacobian_error.item())
 
@@ -147,6 +157,11 @@ def run_experiment(configuration):
             print("\n Jacobian loss:", jacobian_loss)
         else:
             print("\n Reconstruction loss:", reconstruct_loss)
+
+        line_style = dict(styles[config])
+        if style_overrides and config in style_overrides:
+            line_style.update(style_overrides[config])
+
         match configuration[0]:
             case "jac":
                 ax.semilogy(
@@ -160,7 +175,7 @@ def run_experiment(configuration):
                     ),
                     linewidth=1.0,
                     alpha=0.8,
-                    **styles[config],
+                    **line_style,
                 )
             case "rec":
                 ax.semilogy(
@@ -172,12 +187,12 @@ def run_experiment(configuration):
                         if jnp.any(jnp.isnan(jnp.asarray(reconstruct_loss)))
                         else ""
                     ),
-                    **styles[config],
+                    **line_style,
                 )
 
         ax.legend(fontsize="small", loc="center right")
-        ax.set_xlabel("Matrix size")
-        ax.set_ylabel("Gradient error")
+        ax.set_xlabel(xlabel)
+        ax.set_ylabel(ylabel)
         ax.grid(True, alpha=0.3)
 
     fig.tight_layout()
@@ -191,6 +206,14 @@ jac_configs = (
         bidi_backprop_reo: "Autodiff (w/ reortho)",
         bidi_adjoint_reo: "Adjoint (w/o reproj)",
         bidi_adjoint_rep: "Adjoint (w/ reproj)",
+    },
+)
+
+reproj_configs = (
+    "jac",
+    {
+        bidi_adjoint_rep: "BD: Adj. w/ re-proj.",
+        bidi_adjoint_reo: "BD: Adj. w/o re-proj.",
     },
 )
 
@@ -214,6 +237,11 @@ styles = {
     hess_backprop_reo: {"color": "C5"},
 }
 
+reproj_style_overrides = {
+    bidi_adjoint_rep: {"color": "C2", "linestyle": "--", "zorder": 100},
+    bidi_adjoint_reo: {"color": "C3", "linestyle": "-"},
+}
+
 
 def figures_dir():
     here = os.path.dirname(os.path.abspath(__file__))
@@ -222,7 +250,54 @@ def figures_dir():
     return out
 
 
+def make_stability_figure():
+    """Gradient error vs matrix size (normal matrices, autodiff vs adjoint)."""
+    prev_x64 = jax.config.read("jax_enable_x64")
+    jax.config.update("jax_enable_x64", True)
+    try:
+        return run_experiment(
+            jac_configs,
+            ns=jnp.arange(4, 40, step=3),
+            matrix_fn=normal_matrix,
+            xlabel="Matrix size",
+            ylabel="Gradient error",
+            dtype=jnp.float64,
+        )
+    finally:
+        jax.config.update("jax_enable_x64", prev_x64)
+
+
+def make_reprojection_figure():
+    """Adjoint gradient error with vs without reprojection.
+
+    Matches the Aug 2025 identity-Jacobian experiment: dense random normal
+    matrices of shape n x (n/2), Krylov depth k = n/2, float32.
+    """
+    prev_x64 = jax.config.read("jax_enable_x64")
+    jax.config.update("jax_enable_x64", False)
+    try:
+        return run_experiment(
+            reproj_configs,
+            ns=jnp.arange(32, 121, step=8),
+            matrix_fn=normal_matrix,
+            width_fn=lambda n: n // 2,
+            num_matvecs_fn=lambda _n, width: width,
+            xlabel="Matrix size $n$",
+            ylabel="Loss of accuracy",
+            style_overrides=reproj_style_overrides,
+            dtype=jnp.float32,
+        )
+    finally:
+        jax.config.update("jax_enable_x64", prev_x64)
+
+
 if __name__ == "__main__":
-    fig = run_experiment(jac_configs)
-    fig.savefig(os.path.join(figures_dir(), "fig_stability.pdf"), bbox_inches="tight")
+    out = figures_dir()
+
+    fig = make_stability_figure()
+    fig.savefig(os.path.join(out, "fig_stability.pdf"), bbox_inches="tight")
     print("SAVED_STABILITY_FIGURE")
+
+    fig = make_reprojection_figure()
+    fig.savefig(os.path.join(out, "fig_reprojection.pdf"), bbox_inches="tight")
+    print("SAVED_REPROJECTION_FIGURE")

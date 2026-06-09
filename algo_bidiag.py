@@ -370,6 +370,7 @@ def bidiagonalize(
     custom_vjp: bool = True,
     reorthogonalize: bool = True,
     also_reorthogonalize_vjp: bool = True,
+    reproj_repeats: int = 1,
 ):
     assert num_matvecs >= 1, "Don't call with num_matvecs = 0, come on..."
     primal_map = _bidiagonalize_primal(
@@ -510,12 +511,12 @@ def bidiagonalize(
             # Reortho the "down" contained in the carry
             down_i = carry.down_i
             if reorthogonalize and also_reorthogonalize_vjp:
-                down_i = (
-                    down_i
-                    - rs @ (upper_tri[:, i + 1] * (rs.T @ down_i))
-                    + rs[:, i] * das[i]
-                )
-                # down_i = down_i * 1.0
+                for _ in range(reproj_repeats):
+                    down_i = (
+                        down_i
+                        - rs @ (upper_tri[:, i + 1] * (rs.T @ down_i))
+                        + rs[:, i] * das[i]
+                    )
 
             A_down_i, vjp_l = jax.vjp(lambda p: matvec(down_i, *p), matvec_params)
             (new_param_grad_incr_down,) = vjp_l(ls[:, i])
@@ -537,12 +538,12 @@ def bidiagonalize(
 
             # Reortho the "up" we have just produced
             if reorthogonalize and also_reorthogonalize_vjp:
-                up_i = (
-                    up_i
-                    - ls @ (upper_tri[:, i] * (ls.T @ up_i))
-                    + ls[:, i - 1] * dbs[i - 1]
-                )
-                # up_i = up_i * 1.0
+                for _ in range(reproj_repeats):
+                    up_i = (
+                        up_i
+                        - ls @ (upper_tri[:, i] * (ls.T @ up_i))
+                        + ls[:, i - 1] * dbs[i - 1]
+                    )
 
             AT_up_i, vjp_r = jax.vjp(lambda p: vecmat(up_i, *p), matvec_params)
             (new_param_grad_incr_up,) = vjp_r(rs[:, i])
