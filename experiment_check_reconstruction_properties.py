@@ -19,6 +19,16 @@ def hilbert_matrix(ndim, /):
     return 1 / (1 + (a[:, None] + a[None, :]))
 
 
+def cauchy_matrix(ndim, /):
+    """Symmetric Cauchy matrix C_ij = 1/(1 + |i-j|).
+
+    Same smooth, positive-definite, ill-conditioned flavour as the Hilbert
+    matrix but with condition number O(n) instead of exponential in n.
+    """
+    idx = jnp.arange(ndim)
+    return 1 / (1 + jnp.abs(idx[:, None] - idx[None, :]))
+
+
 def normal_matrix(ndim):
     seed = 1
     return jax.random.normal(key=jax.random.PRNGKey(seed), shape=(ndim, ndim))
@@ -39,6 +49,7 @@ class Config:
     reortho: bool
     adjoint: bool
     reproj_adj: Literal["match", "none"] | None = None
+    reproj_repeats: int = 1
 
 
 hess_backprop = Config(algo="Hess", adjoint=False, reortho=False)
@@ -49,6 +60,7 @@ hess_adjoint_reo = Config(algo="Hess", adjoint=True, reortho=True, reproj_adj="n
 bidi_adjoint_reo = Config(algo="Bidi", adjoint=True, reortho=True, reproj_adj="none")
 hess_adjoint_rep = Config(algo="Hess", adjoint=True, reortho=True, reproj_adj="match")
 bidi_adjoint_rep = Config(algo="Bidi", adjoint=True, reortho=True, reproj_adj="match")
+bidi_adjoint_rep2 = Config(algo="Bidi", adjoint=True, reortho=True, reproj_adj="match", reproj_repeats=2)
 
 
 def run_experiment(
@@ -61,12 +73,15 @@ def run_experiment(
     style_overrides: dict[Config, dict] | None = None,
     width_fn: Callable[[int], int] | None = None,
     num_matvecs_fn: Callable[[int, int], int] | None = None,
+    reproj_repeats_fn: Callable[[Config], int] | None = None,
     dtype=jnp.float64,
 ):
     if width_fn is None:
         width_fn = lambda n: n
     if num_matvecs_fn is None:
         num_matvecs_fn = lambda _n, width: width
+    if reproj_repeats_fn is None:
+        reproj_repeats_fn = lambda config: config.reproj_repeats
 
     fig, ax = plt.subplots(figsize=(5, 3.2))
 
@@ -88,6 +103,7 @@ def run_experiment(
                     custom_vjp=config.adjoint,
                     reorthogonalize=config.reortho,
                     also_reorthogonalize_vjp=(config.reproj_adj == "match"),
+                    reproj_repeats=reproj_repeats_fn(config),
                 )
 
                 @jax.jit
@@ -132,9 +148,7 @@ def run_experiment(
                     rlrlrl = result.Q_tall
                     ls = rlrlrl[:height, 1::2]
                     rs = rlrlrl[height:, 0::2]
-                    ababab = (
-                        jnp.diag(result.J_small, k=1) + jnp.diag(result.J_small, k=-1)
-                    ) / 2
+                    ababab = (jnp.diag(result.J_small, k=1) + jnp.diag(result.J_small, k=-1)) / 2
                     alphas = ababab[::2]
                     betas = ababab[1::2]
 
@@ -167,12 +181,7 @@ def run_experiment(
                 ax.semilogy(
                     ns,
                     jnp.asarray(jacobian_loss),
-                    label=label
-                    + (
-                        " (NAN!)"
-                        if jnp.any(jnp.isnan(jnp.asarray(jacobian_loss)))
-                        else ""
-                    ),
+                    label=label + (" (NAN!)" if jnp.any(jnp.isnan(jnp.asarray(jacobian_loss))) else ""),
                     linewidth=1.0,
                     alpha=0.8,
                     **line_style,
@@ -181,12 +190,7 @@ def run_experiment(
                 ax.semilogy(
                     ns,
                     jnp.asarray(reconstruct_loss),
-                    label=label
-                    + (
-                        " (NAN!)"
-                        if jnp.any(jnp.isnan(jnp.asarray(reconstruct_loss)))
-                        else ""
-                    ),
+                    label=label + (" (NAN!)" if jnp.any(jnp.isnan(jnp.asarray(reconstruct_loss))) else ""),
                     **line_style,
                 )
 
@@ -206,6 +210,24 @@ jac_configs = (
         bidi_backprop_reo: "Autodiff (w/ reortho)",
         bidi_adjoint_reo: "Adjoint (w/o reproj)",
         bidi_adjoint_rep: "Adjoint (w/ reproj)",
+    },
+)
+
+hilbert_jac_configs = (
+    "jac",
+    {
+        bidi_backprop: "Autodiff (w/o reortho)",
+        bidi_backprop_reo: "Autodiff (w/ reortho)",
+        bidi_adjoint_reo: "Adjoint (w/o reproj)",
+        bidi_adjoint_rep: "Adjoint (w/ reproj)",
+    },
+)
+
+hilbert_rec_configs = (
+    "rec",
+    {
+        bidi_backprop: "Forward (w/o reortho)",
+        bidi_backprop_reo: "Forward (w/ reortho)",
     },
 )
 
@@ -233,6 +255,7 @@ styles = {
     bidi_backprop_reo: {"color": "C1"},
     bidi_adjoint_reo: {"color": "C2"},
     bidi_adjoint_rep: {"color": "C3"},
+    bidi_adjoint_rep2: {"color": "C3", "linestyle": "--"},
     hess_backprop: {"color": "C4"},
     hess_backprop_reo: {"color": "C5"},
 }
@@ -262,6 +285,48 @@ def make_stability_figure():
             xlabel="Matrix size",
             ylabel="Gradient error",
             dtype=jnp.float64,
+        )
+    finally:
+        jax.config.update("jax_enable_x64", prev_x64)
+
+
+def make_hilbert_stability_figure():
+    """Gradient error vs matrix size on square Cauchy matrices.
+
+    Dense n x n Cauchy matrices C_ij = 1/(1+|i-j|), Krylov depth k = n,
+    float32. Milder conditioning than the Hilbert matrix (kappa ~ O(n)).
+    """
+    prev_x64 = jax.config.read("jax_enable_x64")
+    jax.config.update("jax_enable_x64", False)
+    try:
+        return run_experiment(
+            hilbert_jac_configs,
+            ns=jnp.arange(4, 41, step=2),
+            matrix_fn=cauchy_matrix,
+            xlabel="Matrix size $n$",
+            ylabel="Gradient error",
+            dtype=jnp.float32,
+        )
+    finally:
+        jax.config.update("jax_enable_x64", prev_x64)
+
+
+def make_hilbert_reconstruction_figure():
+    """Forward reconstruction error on square Cauchy matrices.
+
+    RMS error ||A - LBR^T|| for bidiagonalization with and without forward
+    reorthonormalization (two passes). float32, k = n.
+    """
+    prev_x64 = jax.config.read("jax_enable_x64")
+    jax.config.update("jax_enable_x64", False)
+    try:
+        return run_experiment(
+            hilbert_rec_configs,
+            ns=jnp.arange(4, 41, step=2),
+            matrix_fn=cauchy_matrix,
+            xlabel="Matrix size $n$",
+            ylabel="Reconstruction error",
+            dtype=jnp.float32,
         )
     finally:
         jax.config.update("jax_enable_x64", prev_x64)
@@ -301,3 +366,11 @@ if __name__ == "__main__":
     fig = make_reprojection_figure()
     fig.savefig(os.path.join(out, "fig_reprojection.pdf"), bbox_inches="tight")
     print("SAVED_REPROJECTION_FIGURE")
+
+    fig = make_hilbert_stability_figure()
+    fig.savefig(os.path.join(out, "fig_hilbert_stability.pdf"), bbox_inches="tight")
+    print("SAVED_HILBERT_STABILITY_FIGURE")
+
+    fig = make_hilbert_reconstruction_figure()
+    fig.savefig(os.path.join(out, "fig_hilbert_reconstruction.pdf"), bbox_inches="tight")
+    print("SAVED_HILBERT_RECONSTRUCTION_FIGURE")

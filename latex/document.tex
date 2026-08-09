@@ -625,7 +625,10 @@ For Hessenberg factorization the relevant constraint is $Q^\top q_i = e_i$ \eqre
 \end{figure}
 
 \section{Experiments}\label{sec:experiments}
-All methods are implemented in JAX~\citep{jax2018github}. We compare three ways of differentiating Bidiagonalization: reverse-mode automatic differentiation through the unrolled iteration (\textit{autodiff}), the stable adjoint derived above (\textit{adjoint}), and, as a reference, the forward pass on its own. We also compare against the augmented Hessenberg formulation. Unless stated otherwise, the matrix is dense and accessed through a diagonal matrix-vector product, computations use single precision, and timings are averaged over repeated runs after compilation. The hardware and software configuration is recorded alongside the raw measurements.
+All methods are implemented in JAX~\citep{jax2018github}. We compare three ways of differentiating Bidiagonalization: reverse-mode automatic differentiation through the unrolled iteration (\textit{autodiff}), the stable adjoint derived above (\textit{adjoint}), and, as a reference, the forward pass on its own. We also compare against the augmented Hessenberg formulation. Unless stated otherwise, the matrix is dense and accessed through a diagonal matrix-vector product, and timings are averaged over repeated runs after compilation. The hardware and software configuration is recorded alongside the raw measurements.
+
+\paragraph{Experimental setup.}
+Our implementation applies \emph{two} reorthonormalization passes per Krylov step whenever forward reorthonormalization is enabled (the ``twice is enough'' rule of \citet{golub2013matrix}). Timing experiments (Figures~\ref{fig:compile} and~\ref{fig:backward}) and all adjoint curves use this reorthonormalized forward pass throughout. What varies across accuracy figures is the \emph{backward} pass: autodiff differentiates through whatever the forward pass does; adjoint curves labeled ``w/ reproj'' apply one reprojection pass per step in the custom VJP, whereas ``w/o reproj'' turns that correction off while still running the reorthonormalized forward pass. Figures~\ref{fig:reprojection}, \ref{fig:hilbert_stability}, and~\ref{fig:hilbert_reconstruction} use single precision (float32); Figure~\ref{fig:stability} uses double precision (float64) on dense random $n \times n$ matrices with $k=n$. Figure~\ref{fig:reprojection} uses random $n \times (n/2)$ matrices with $k=n/2$; Figures~\ref{fig:hilbert_stability} and~\ref{fig:hilbert_reconstruction} use Cauchy matrices $C_{ij}=1/(1+|i-j|)$ on $n \times n$ problems with $k=n$ (symmetric positive-definite, $\kappa(C)\approx 15$ at $n=40$ versus $\kappa(H)\approx 10^{10}$ for the Hilbert matrix). Gradient accuracy is measured by bidiagonalizing $A$, reconstructing $LBR^\top$, and reporting the RMS error $\|\partial(LBR^\top)/\partial A - I\|_{\mathrm{rms}}$ (the Jacobian of reconstruction should be the identity).
 
 \begin{figure}[t]
     \centering
@@ -644,11 +647,25 @@ All methods are implemented in JAX~\citep{jax2018github}. We compare three ways 
 \begin{figure}[t]
     \centering
     \includegraphics[width=0.7\linewidth]{fig_stability.pdf}
-    \caption{Gradient error against matrix size. Autodiff drifts as the matrix grows, and turns into NaNs once it differentiates through reorthonormalization; the adjoint stays accurate throughout.}
+    \caption{Gradient error against matrix size for dense random $n \times n$ matrices with $k=n$. Autodiff drifts as the matrix grows, and turns into NaNs once it differentiates through reorthonormalization; the adjoint stays accurate throughout.}
     \label{fig:stability}
 \end{figure}
 
-Compile time tells the simplest story (Figure~\ref{fig:compile}): the adjoint stays within a small factor of the forward pass, while autodiff keeps getting more expensive because it has to trace the whole unrolled iteration. Run time looks the same, with one extra wrinkle---autodiff eventually exhausts memory and stops, whereas the adjoint keeps going to much larger problems (Figure~\ref{fig:backward}). The accuracy gap is the widest of the three. As the matrix grows the adjoint tracks the true gradient to roughly seven orders of magnitude, while autodiff slowly drifts; and once the forward reorthonormalization itself is differentiated through, autodiff returns NaNs and is unusable (Figure~\ref{fig:stability}).
+\begin{figure}[t]
+    \centering
+    \includegraphics[width=0.7\linewidth]{fig_hilbert_stability.pdf}
+    \caption{Same experiment as Figure~\ref{fig:stability} on square Cauchy matrices (Section~\ref{sec:experiments}). Autodiff drifts and NaNs once it differentiates through reorthonormalization; the adjoint without backward reprojection eventually degrades as well, while the reprojection-corrected adjoint stays near machine precision throughout.}
+    \label{fig:hilbert_stability}
+\end{figure}
+
+\begin{figure}[t]
+    \centering
+    \includegraphics[width=0.7\linewidth]{fig_hilbert_reconstruction.pdf}
+    \caption{Forward reconstruction error $\|A - LBR^\top\|_{\mathrm{rms}}$ on the Cauchy setup of Section~\ref{sec:experiments} ($n \times n$, $k=n$, single precision). Reorthonormalization keeps the factorization accurate; without it the forward pass drifts to $\mathcal{O}(1)$ error.}
+    \label{fig:hilbert_reconstruction}
+\end{figure}
+
+Compile time tells the simplest story (Figure~\ref{fig:compile}): the adjoint stays within a small factor of the forward pass, while autodiff keeps getting more expensive because it has to trace the whole unrolled iteration. Run time looks the same, with one extra wrinkle---autodiff eventually exhausts memory and stops, whereas the adjoint keeps going to much larger problems (Figure~\ref{fig:backward}). The accuracy gap is the widest of the three. As the matrix grows the adjoint tracks the true gradient to roughly seven orders of magnitude, while autodiff slowly drifts; and once the forward reorthonormalization itself is differentiated through, autodiff returns NaNs and is unusable (Figure~\ref{fig:stability}). The same pattern appears on a mildly ill-conditioned Cauchy test matrix (Figure~\ref{fig:hilbert_stability}): the forward pass needs reorthonormalization to reconstruct $A$ (Figure~\ref{fig:hilbert_reconstruction}), autodiff through that reorthonormalization fails in single precision, and the reprojection-corrected adjoint remains accurate.
 
 \section{Conclusion}
 By viewing bidiagonalization as a Hessenberg factorization of an augmented symmetric matrix, we obtained a stable adjoint for it almost for free, and pruning the augmented system's zeros brought the cost back down to that of the original problem. The adjoint needs nothing beyond matrix-vector products and a reprojection step, and in our experiments it was the only one of the three methods that stayed both cheap and accurate at the larger sizes. The same augment-then-prune recipe should carry over to other structured factorizations that embed into a Hessenberg or symmetric Lanczos form; we leave that to future work.

@@ -1,6 +1,7 @@
 jax
 jaxlib
 matplotlib
+mpmath
 numpy
 polars
 tqdm
