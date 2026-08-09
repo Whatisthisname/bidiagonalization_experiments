@@ -28,9 +28,9 @@ skip it.
 
 **Notation.** Vectors are columns. $e_1$ is the first standard basis
 vector $(1, 0, \dots, 0)^\top$. $W^\top$ is the transpose of $W$.
-$\lvert v \rvert$ is the Euclidean norm. $\operatorname{null}(M)$ is the
+$\lvert v \rvert$ is the Euclidean norm. $\mathrm{null}(M)$ is the
 null space of $M$: all vectors $\nu$ with $M\nu = 0$.
-$\operatorname{range}(M)$ is the column space of $M$: all vectors of the
+$\mathrm{range}(M)$ is the column space of $M$: all vectors of the
 form $M z$.
 
 ## 1. The idea in one paragraph
@@ -84,14 +84,14 @@ states that fact. Read it slowly; the rest of the guide only applies it.
 
 Consider a linear system
 
-$$M \mu = b, \qquad M \in \mathbb{R}^{m \times n}, \quad n > \operatorname{rank}(M) = m'.$$
+$$M \mu = b, \qquad M \in \mathbb{R}^{m \times n}, \quad n > \mathrm{rank}(M) = m'.$$
 
 The matrix $M$ has more columns than its rank. So the system has more
 unknowns than independent equations. Suppose the system is
-**consistent**: the vector $b$ lies in $\operatorname{range}(M)$, so at
+**consistent**: the vector $b$ lies in $\mathrm{range}(M)$, so at
 least one solution exists. Then the solution set is an **affine family**:
 
-$$\mu = \mu_{\text{particular}} + \nu, \qquad \nu \in \operatorname{null}(M).$$
+$$\mu = \mu_{\text{particular}} + \nu, \qquad \nu \in \mathrm{null}(M).$$
 
 In words: take any one solution, and add any null-space vector of $M$.
 The result is again a solution. All solutions arise this way. The family
@@ -99,8 +99,8 @@ has dimension $n - m'$ (the dimension of the null space of $M$).
 
 One caution about the word "affine". The family is affine, not a
 subspace. The *difference* of two solutions is in
-$\operatorname{null}(M)$. But a solution itself is not in
-$\operatorname{null}(M)$, unless $b = 0$. So: differences live in a
+$\mathrm{null}(M)$. But a solution itself is not in
+$\mathrm{null}(M)$, unless $b = 0$. So: differences live in a
 subspace; solutions live in a shifted copy of that subspace.
 
 Now the second half of the fact. Suppose you do not report $\mu$ itself.
@@ -114,9 +114,9 @@ of equivalent conditions:
 $$
 \begin{aligned}
 g \text{ is the same for every solution}
-&\iff W^\top \nu = 0 \ \text{ for every } \nu \in \operatorname{null}(M) \\
-&\iff \text{the columns of } W \text{ are orthogonal to } \operatorname{null}(M) \\
-&\iff \text{the columns of } W \text{ lie in } \operatorname{range}(M^\top).
+&\iff W^\top \nu = 0 \ \text{ for every } \nu \in \mathrm{null}(M) \\
+&\iff \text{the columns of } W \text{ are orthogonal to } \mathrm{null}(M) \\
+&\iff \text{the columns of } W \text{ lie in } \mathrm{range}(M^\top).
 \end{aligned}
 $$
 
@@ -291,7 +291,7 @@ weight to the adjoint system. So "more constraints than outputs" flips
 into "fewer equations than unknowns for the weights". The multiplier
 solutions form an affine family (section 2) of dimension
 
-$$d_O - \operatorname{rank}(J_x) = d_O - d_U = r.$$
+$$d_O - \mathrm{rank}(J_x) = d_O - d_U = r.$$
 
 That family is the gauge freedom of the multiplier.
 
@@ -314,14 +314,14 @@ $$J_x = \begin{bmatrix} 1 & 0 \\ 0 & 1 \\ 1 & 1 \\ 2 & -1 \end{bmatrix}.$$
 
 (a) State $d_O$, $d_U$ (the rank), and the gauge dimension $r$. (b) Write
 out the two equations of $J_x^\top \nu = 0$ and find a basis of
-$\operatorname{null}(J_x^\top)$: two independent null vectors.
+$\mathrm{null}(J_x^\top)$: two independent null vectors.
 
 ## 5. Why the gradient does not care: the invariance lemma
 
 The multiplier is not unique. Does that make the gradient ambiguous? No.
 This section proves it. The proof is three lines.
 
-**Lemma.** If $\nu \in \operatorname{null}(J_x^\top)$, then
+**Lemma.** If $\nu \in \mathrm{null}(J_x^\top)$, then
 $J_\theta^\top \nu = 0$. Consequently, every solution of (A) yields the
 same gradient through (G).
 
@@ -332,11 +332,11 @@ $S^\top 0 = 0$. Hence $J_\theta^\top \nu = 0$. QED
 
 Read the lemma once more in the language of section 2. There, gauge
 invariance required: the columns of $W$ lie in the orthogonal complement
-of $\operatorname{null}(M)$. Here, $M = J_x^\top$ and $W = J_\theta$.
+of $\mathrm{null}(M)$. Here, $M = J_x^\top$ and $W = J_\theta$.
 Identity $(*)$ says $J_\theta = -J_x S$. So every column of $J_\theta$ is
 a combination of columns of $J_x$. So the columns of $J_\theta$ lie in
-$\operatorname{range}(J_x)$. And $\operatorname{range}(J_x)$ is precisely
-the orthogonal complement of $\operatorname{null}(J_x^\top)$. So the
+$\mathrm{range}(J_x)$. And $\mathrm{range}(J_x)$ is precisely
+the orthogonal complement of $\mathrm{null}(J_x^\top)$. So the
 invariance condition of section 2 holds automatically. It is not luck. It
 is forced by identity $(*)$.
 
@@ -938,7 +938,7 @@ sec. 0).
 | auxiliary quantity | multipliers $\mu = (\Xi, \Phi, \kappa, \Sigma, \Omega, \eta)$ |
 | defining system (A) | stationarity system, NOTES_01 sec. 0 |
 | gauge dimension $r = d_O - d_U$ | $K^2$ (exp01) |
-| $\operatorname{null}(J_x^\top)$ | verified dimension $K^2$ (exp01) |
+| $\mathrm{null}(J_x^\top)$ | verified dimension $K^2$ (exp01) |
 | invariance lemma | NOTES_01 sec. 4 + exp01 numerical check |
 | "drop redundant rows" gauge ($t = 0$ in example A) | reduced / appendix-B.2 gauge (NOTES_02) |
 | pin-components gauge fix | the $K^2$ selection identities (NOTES_03) |
@@ -1013,10 +1013,10 @@ a two-dimensional affine family. (b) For $w = (1, 1, 1)^\top$, the
 report is $g = \mu_1 + \mu_2 + \mu_3$. That is exactly the left-hand side
 of the defining equation, so $g = 2$ for every solution. Invariant.
 (Consistency check with section 2: $w$ is the single row of $M$, so $w$
-lies in $\operatorname{range}(M^\top)$.) (c) For $w = (1, 2, 3)^\top$:
+lies in $\mathrm{range}(M^\top)$.) (c) For $w = (1, 2, 3)^\top$:
 the solution $(2, 0, 0)$ gives $g = 2$; the solution $(0, 2, 0)$ gives
 $g = 4$. Different values, so not invariant. (Indeed $w$ is not a
-multiple of $(1,1,1)$, so $w \notin \operatorname{range}(M^\top)$.)
+multiple of $(1,1,1)$, so $w \notin \mathrm{range}(M^\top)$.)
 
 **Solution 3.** (a) With $J_x = I$, system (A) reads
 $\mu = -\nabla_x \rho = (-1, -1)^\top$. (b) The perturbed constraints
@@ -1036,7 +1036,7 @@ $$\nu_1 + \nu_3 + 2\nu_4 = 0, \qquad \nu_2 + \nu_3 - \nu_4 = 0.$$
 Choose the free variables $(\nu_3, \nu_4)$. Setting
 $(\nu_3, \nu_4) = (1, 0)$ gives $\nu = (-1, -1, 1, 0)^\top$; setting
 $(\nu_3, \nu_4) = (0, 1)$ gives $\nu = (-2, 1, 0, 1)^\top$. These two
-vectors are independent and span $\operatorname{null}(J_x^\top)$.
+vectors are independent and span $\mathrm{null}(J_x^\top)$.
 
 **Solution 5.** (a)
 $J_\theta^\top \nu = (-1)(-2) + (-2)(1) + (0)(1) = 2 - 2 + 0 = 0$.
