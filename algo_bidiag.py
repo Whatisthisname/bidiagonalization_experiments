@@ -126,8 +126,8 @@ def _bidiagonalize_primal(num_matvecs: int, reorthogonalize: bool = True):
             )
 
             if reorthogonalize:
-                l_dir = l_dir - carry.ls @ carry.ls.T @ l_dir
-                l_dir = l_dir - carry.ls @ carry.ls.T @ l_dir
+                l_dir = l_dir - carry.ls @ (carry.ls.T @ l_dir)
+                l_dir = l_dir - carry.ls @ (carry.ls.T @ l_dir)
 
             new_alpha = jnp.linalg.norm(l_dir)
             new_l = l_dir / new_alpha
@@ -138,8 +138,8 @@ def _bidiagonalize_primal(num_matvecs: int, reorthogonalize: bool = True):
             r_dir = vecmat(ls[:, i]) - as_[i] * rs[:, i]
 
             if reorthogonalize:
-                r_dir = r_dir - rs @ rs.T @ r_dir
-                r_dir = r_dir - rs @ rs.T @ r_dir
+                r_dir = r_dir - rs @ (rs.T @ r_dir)
+                r_dir = r_dir - rs @ (rs.T @ r_dir)
 
             new_beta = jnp.linalg.norm(r_dir)
             bs = carry.bs.at[i].set(new_beta)
