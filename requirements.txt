@@ -1,5 +1,6 @@
 jax
 jaxlib
+matfree
 matplotlib
 mpmath
 numpy

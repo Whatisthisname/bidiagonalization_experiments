@@ -1,0 +1,193 @@
+{
+ "config": {
+  "size": 20000,
+  "kernel_length": 31,
+  "dtype": "float32",
+  "device": "cpu: arm",
+  "jax": "0.11.2",
+  "time_repeats": 3,
+  "time_memory_limit_bytes": 12000000000.0
+ },
+ "records": [
+  {
+   "method": "forward",
+   "depth": 16,
+   "bytes": 5525400,
+   "seconds": 0.010862583003472537
+  },
+  {
+   "method": "bidiag_adjoint",
+   "depth": 16,
+   "bytes": 8167908,
+   "seconds": 0.024968290992546827
+  },
+  {
+   "method": "bidiag_autodiff",
+   "depth": 16,
+   "bytes": 216117740,
+   "seconds": 0.05314704100601375
+  },
+  {
+   "method": "lanczos_gram",
+   "depth": 16,
+   "bytes": 9367708,
+   "seconds": 0.015671833010856062
+  },
+  {
+   "method": "arnoldi_augmented",
+   "depth": 16,
+   "bytes": 36453596,
+   "seconds": 0.0774141660076566
+  },
+  {
+   "method": "forward",
+   "depth": 32,
+   "bytes": 10649432,
+   "seconds": 0.03527308302000165
+  },
+  {
+   "method": "bidiag_adjoint",
+   "depth": 32,
+   "bytes": 15861092,
+   "seconds": 0.0722715409938246
+  },
+  {
+   "method": "bidiag_autodiff",
+   "depth": 32,
+   "bytes": 800105260,
+   "seconds": 0.17701408395078033
+  },
+  {
+   "method": "lanczos_gram",
+   "depth": 32,
+   "bytes": 18346460,
+   "seconds": 0.040972208022139966
+  },
+  {
+   "method": "arnoldi_augmented",
+   "depth": 32,
+   "bytes": 72394844,
+   "seconds": 0.3288771250518039
+  },
+  {
+   "method": "forward",
+   "depth": 64,
+   "bytes": 20897432,
+   "seconds": 0.12050629197619855
+  },
+  {
+   "method": "bidiag_adjoint",
+   "depth": 64,
+   "bytes": 31265892,
+   "seconds": 0.2339053750038147
+  },
+  {
+   "method": "bidiag_autodiff",
+   "depth": 64,
+   "bytes": 3074577836,
+   "seconds": 0.6123059580568224
+  },
+  {
+   "method": "lanczos_gram",
+   "depth": 64,
+   "bytes": 36340828,
+   "seconds": 0.1451010000309907
+  },
+  {
+   "method": "arnoldi_augmented",
+   "depth": 64,
+   "bytes": 144424796,
+   "seconds": 1.868097124970518
+  },
+  {
+   "method": "forward",
+   "depth": 128,
+   "bytes": 41393560,
+   "seconds": 0.44420854200143367
+  },
+  {
+   "method": "bidiag_adjoint",
+   "depth": 128,
+   "bytes": 62214756,
+   "seconds": 0.7284605420427397
+  },
+  {
+   "method": "bidiag_autodiff",
+   "depth": 128,
+   "bytes": 12049513132,
+   "seconds": null
+  },
+  {
+   "method": "lanczos_gram",
+   "depth": 128,
+   "bytes": 72477020,
+   "seconds": 0.6142836670042016
+  },
+  {
+   "method": "arnoldi_augmented",
+   "depth": 128,
+   "bytes": 289074524,
+   "seconds": 6.525699999998324
+  },
+  {
+   "method": "forward",
+   "depth": 256,
+   "bytes": 82385816,
+   "seconds": 1.3597874580300413
+  },
+  {
+   "method": "bidiag_adjoint",
+   "depth": 256,
+   "bytes": 124472932,
+   "seconds": 2.4333164999843575
+  },
+  {
+   "method": "bidiag_autodiff",
+   "depth": 256,
+   "bytes": 47703344300,
+   "seconds": null
+  },
+  {
+   "method": "lanczos_gram",
+   "depth": 256,
+   "bytes": 145339228,
+   "seconds": 3.0759527910267934
+  },
+  {
+   "method": "arnoldi_augmented",
+   "depth": 256,
+   "bytes": 580733276,
+   "seconds": 27.378639542032033
+  },
+  {
+   "method": "forward",
+   "depth": 512,
+   "bytes": 164370328,
+   "seconds": null
+  },
+  {
+   "method": "bidiag_adjoint",
+   "depth": 512,
+   "bytes": 250562148,
+   "seconds": null
+  },
+  {
+   "method": "bidiag_autodiff",
+   "depth": 512,
+   "bytes": 189826848940,
+   "seconds": null
+  },
+  {
+   "method": "lanczos_gram",
+   "depth": 512,
+   "bytes": 293422940,
+   "seconds": null
+  },
+  {
+   "method": "arnoldi_augmented",
+   "depth": 512,
+   "bytes": 1173487964,
+   "seconds": null
+  }
+ ]
+}
