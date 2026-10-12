@@ -13,9 +13,11 @@ against the float64 bidiagonalization adjoint on the same float32 matrix.
 
 Matrices are downloaded from https://sparse.tamu.edu into data/suitesparse.
 
+Results go to results/suitesparse.json; `plot_figures.py` writes the table.
+
 Usage:
-    python experiment_suitesparse.py              # compute, write table
-    python experiment_suitesparse.py --table-only # re-write table from JSON
+    python experiment_suitesparse.py          # compute missing matrices
+    python experiment_suitesparse.py --fresh  # recompute all matrices
 """
 
 import argparse
@@ -48,19 +50,10 @@ TIME_MEMORY_LIMIT_BYTES = 8e9
 SLOW_SECONDS = 5.0
 
 METHODS = ("forward", "bidiag_adjoint", "bidiag_autodiff", "lanczos_gram", "arnoldi_augmented")
-GRADIENT_METHODS = METHODS[1:]
-LABELS = {
-    "forward": "Forward pass only",
-    "bidiag_adjoint": "Bidiag adjoint (ours)",
-    "bidiag_autodiff": "Bidiag autodiff",
-    "lanczos_gram": r"Lanczos adjoint on $A^\top A$",
-    "arnoldi_augmented": "Arnoldi adjoint, augmented",
-}
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 DATA_DIR = os.path.join(HERE, "data", "suitesparse")
-RESULTS_PATH = os.path.join(HERE, "results_suitesparse.json")
-TABLE_PATH = os.path.join(HERE, "latex", "table_suitesparse.tex")
+RESULTS_PATH = os.path.join(HERE, "results", "suitesparse.json")
 
 
 def load_matrix(group, name):
@@ -205,67 +198,17 @@ def compute(fresh):
         info, recs = compute_matrix(group, name, NUM_MATVECS)
         results["matrices"].append(info)
         results["records"] += recs
+        os.makedirs(os.path.dirname(RESULTS_PATH), exist_ok=True)
         with open(RESULTS_PATH, "w") as f:
             json.dump(results, f, indent=1)
         jax.clear_caches()
     return results
 
 
-def _fmt_bytes(b):
-    gb = b / 1e9
-    return f"{gb:.1f}" if gb >= 10 else f"{gb:.2f}"
-
-
-def _fmt_sci(x):
-    if x is None:
-        return "---"
-    if not np.isfinite(x):
-        return "NaN"
-    mantissa, exponent = f"{x:.1e}".split("e")
-    return rf"${mantissa}\cdot 10^{{{int(exponent)}}}$"
-
-
-def write_table(results):
-    lines = [
-        r"\begin{tabular}{llrrr}",
-        r"\toprule",
-        r"Matrix & Method & Memory (GB) & Time (s) & Gradient error \\",
-        r"\midrule",
-    ]
-    for i, info in enumerate(results["matrices"]):
-        recs = {r["method"]: r for r in results["records"] if r["matrix"] == info["matrix"]}
-        header = [
-            rf"\texttt{{{info['matrix'].replace('_', r'\_')}}}",
-            rf"${info['rows']:,} \times {info['cols']:,}$".replace(",", "{,}"),
-            rf"{info['nnz'] / 1e6:.2f}M nonzeros",
-        ]
-        for j, m in enumerate(METHODS):
-            r = recs[m]
-            seconds = f"{r['seconds']:.2f}" if r["seconds"] is not None else "---"
-            error = "" if m == "forward" else _fmt_sci(r["grad_err"])
-            label = rf"\textbf{{{LABELS[m]}}}" if m == "bidiag_adjoint" else LABELS[m]
-            first = header[j] if j < len(header) else ""
-            lines.append(f"{first} & {label} & {_fmt_bytes(r['bytes'])} & {seconds} & {error} \\\\")
-        if i < len(results["matrices"]) - 1:
-            lines.append(r"\midrule")
-    lines += [r"\bottomrule", r"\end{tabular}"]
-    with open(TABLE_PATH, "w") as f:
-        f.write("\n".join(lines) + "\n")
-    print(f"Saved {TABLE_PATH}")
-
-
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--table-only", action="store_true")
     parser.add_argument("--fresh", action="store_true", help="ignore matrices already in the results file")
-    args = parser.parse_args()
-
-    if args.table_only:
-        with open(RESULTS_PATH) as f:
-            results = json.load(f)
-    else:
-        results = compute(args.fresh)
-    write_table(results)
+    compute(parser.parse_args().fresh)
 
 
 if __name__ == "__main__":

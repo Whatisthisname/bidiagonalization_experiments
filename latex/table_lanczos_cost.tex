@@ -1,0 +1,14 @@
+\begin{tabular}{lrrrrrr}
+\toprule
+& & \multicolumn{2}{c}{Bidiagonalization} & \multicolumn{2}{c}{Lanczos on $A^\top A$} & \\
+\cmidrule(lr){3-4} \cmidrule(lr){5-6}
+Operator & $(N{+}M)/M$ & total (s) & orthog. (s) & total (s) & orthog. (s) & orthog. ratio \\
+\midrule
+convolution & 2.0 & 0.40 & 0.25 & 0.16 & 0.14 & 1.8 \\
+\texttt{Kemelmacher} & 3.9 & 0.28 & 0.16 & 0.09 & 0.03 & 4.6 \\
+\texttt{tomographic1} & 2.2 & 1.23 & 0.73 & 0.64 & 0.35 & 2.1 \\
+\texttt{image\_interp} & 3.0 & 2.76 & 1.87 & 1.11 & 0.81 & 2.3 \\
+\texttt{ESOC} & 9.6 & 5.46 & 2.11 & 2.78 & 0.18 & 12.0 \\
+\texttt{Rucci1} & 19.0 & 18.87 & 12.43 & 4.39 & 0.74 & 16.8 \\
+\bottomrule
+\end{tabular}

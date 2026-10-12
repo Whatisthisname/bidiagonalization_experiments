@@ -15,23 +15,21 @@ matrix, cross-checked against the three other methods in float64.
 Two sweeps: condition number kappa(A) at fixed depth, and depth k at fixed
 kappa(A).
 
+Results go to results/precision_sweep.json; `plot_figures.py` draws them.
+
 Usage:
-    python experiment_precision_sweep.py              # compute and plot
-    python experiment_precision_sweep.py --plot-only  # re-plot from JSON
+    python experiment_precision_sweep.py
 """
 
-import argparse
 import json
 import os
 import time
 
 import jax
 import jax.numpy as jnp
-import matplotlib.pyplot as plt
 import numpy as np
 from matfree import decomp
 
-import plot_style
 from algo_bidiag import bidiagonalize
 
 N_ROWS, N_COLS = 1000, 500
@@ -42,22 +40,9 @@ DEPTH_SWEEP_LOG10_KAPPA = 4.0
 DEPTH_SWEEP_DEPTHS = (25, 50, 100, 150, 200, 250, 300)
 
 METHODS = ("bidiag_adjoint", "bidiag_autodiff", "lanczos_gram", "arnoldi_augmented")
-LABELS = {
-    "bidiag_adjoint": "Bidiag adjoint (ours)",
-    "bidiag_autodiff": "Bidiag autodiff",
-    "lanczos_gram": r"Lanczos adjoint on $A^\top A$",
-    "arnoldi_augmented": "Arnoldi adjoint, augmented",
-}
-STYLES = {
-    "bidiag_adjoint": {"color": plot_style.ADJOINT_COLOR, "marker": "o", "zorder": 4},
-    "bidiag_autodiff": {"color": plot_style.AUTODIFF_COLOR, "marker": "s", "linestyle": "--", "zorder": 3},
-    "lanczos_gram": {"color": "C3", "marker": "^"},
-    "arnoldi_augmented": {"color": "C2", "marker": "v", "linestyle": ":"},
-}
-FAILURE_CEILING = 1.0
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-RESULTS_PATH = os.path.join(HERE, "results_precision_sweep.json")
+RESULTS_PATH = os.path.join(HERE, "results", "precision_sweep.json")
 
 
 def make_problem(log10_kappa, seed):
@@ -178,64 +163,14 @@ def compute():
     }
 
 
-def plot(results):
-    plot_style.use_paper_style()
-    records = results["records"]
-    cfg = results["config"]
-    panels = (
-        ("kappa", "log10_kappa", r"Condition number $\kappa(A)$", rf"Depth $k = {cfg['kappa_sweep_depth']}$"),
-        ("depth", "depth", r"Krylov depth $k$", rf"$\kappa(A) = 10^{{{cfg['depth_sweep_log10_kappa']:.0f}}}$"),
-    )
-    fig, axes = plt.subplots(1, 2, figsize=(7.0, 2.8), sharey=True)
-    for ax, (sweep, key, xlabel, title) in zip(axes, panels):
-        for m in METHODS:
-            rows = [r for r in records if r["sweep"] == sweep and r["method"] == m]
-            xs = sorted({r[key] for r in rows})
-            errs = np.array([[r["grad_err"] for r in rows if r[key] == x] for x in xs])
-            errs = np.minimum(np.where(np.isfinite(errs), errs, np.inf), FAILURE_CEILING)
-            x = 10.0 ** np.array(xs) if sweep == "kappa" else np.array(xs)
-            style = dict(STYLES[m])
-            ax.plot(
-                x,
-                np.median(errs, axis=1),
-                label=LABELS[m],
-                markersize=plot_style.MARKERSIZE,
-                linewidth=plot_style.LINEWIDTH,
-                **style,
-            )
-            ax.fill_between(x, errs.min(axis=1), errs.max(axis=1), color=style["color"], alpha=0.15, linewidth=0)
-        ax.axhline(FAILURE_CEILING, color="gray", linestyle=":", linewidth=0.8)
-        if sweep == "kappa":
-            ax.set_xscale("log")
-        ax.set_title(title)
-        plot_style.style_axis(ax, xlabel, "", legend=False)
-    axes[0].set_ylabel("Relative gradient error")
-    axes[0].text(
-        10.0 ** KAPPA_SWEEP_LOG10_KAPPAS[0], FAILURE_CEILING * 0.75, "NaN or 100% error",
-        fontsize="x-small", color="gray", va="top",
-    )
-    axes[1].legend(fontsize="x-small", loc="lower right")
-    return fig
-
-
 def main():
-    parser = argparse.ArgumentParser()
-    parser.add_argument("--plot-only", action="store_true")
-    args = parser.parse_args()
-
-    if args.plot_only:
-        with open(RESULTS_PATH) as f:
-            results = json.load(f)
-    else:
-        t0 = time.perf_counter()
-        results = compute()
-        print(f"Computed in {time.perf_counter() - t0:.0f} s")
-        with open(RESULTS_PATH, "w") as f:
-            json.dump(results, f, indent=1)
-
-    out = os.path.join(HERE, "latex", "figures", "fig_precision_sweep.pdf")
-    plot(results).savefig(out, bbox_inches="tight")
-    print(f"Saved {out}")
+    t0 = time.perf_counter()
+    results = compute()
+    print(f"Computed in {time.perf_counter() - t0:.0f} s")
+    os.makedirs(os.path.dirname(RESULTS_PATH), exist_ok=True)
+    with open(RESULTS_PATH, "w") as f:
+        json.dump(results, f, indent=1)
+    print(f"Saved {RESULTS_PATH}")
 
 
 if __name__ == "__main__":

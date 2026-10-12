@@ -50,3 +50,4 @@ latex/document.pdf
 .bak 
 .mtc
 build/
+logs/

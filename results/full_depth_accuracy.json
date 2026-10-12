@@ -1,0 +1,1241 @@
+{
+ "config": {
+  "device": "cpu: arm",
+  "jax": "0.11.2",
+  "experiments": {
+   "normal": {
+    "matrix": "normal",
+    "ns": [
+     4,
+     7,
+     10,
+     13,
+     16,
+     19,
+     22,
+     25,
+     28,
+     31,
+     34,
+     37
+    ],
+    "width": "n",
+    "dtype": "float64",
+    "metric": "jacobian",
+    "methods": [
+     "bidiag_autodiff_noreortho",
+     "bidiag_autodiff",
+     "bidiag_adjoint_noreproj",
+     "bidiag_adjoint"
+    ]
+   },
+   "cauchy": {
+    "matrix": "cauchy",
+    "ns": [
+     4,
+     6,
+     8,
+     10,
+     12,
+     14,
+     16,
+     18,
+     20,
+     22,
+     24,
+     26,
+     28,
+     30,
+     32,
+     34,
+     36,
+     38,
+     40
+    ],
+    "width": "n",
+    "dtype": "float32",
+    "metric": "jacobian",
+    "methods": [
+     "bidiag_autodiff_noreortho",
+     "bidiag_autodiff",
+     "bidiag_adjoint_noreproj",
+     "bidiag_adjoint"
+    ]
+   },
+   "cauchy_reconstruction": {
+    "matrix": "cauchy",
+    "ns": [
+     4,
+     6,
+     8,
+     10,
+     12,
+     14,
+     16,
+     18,
+     20,
+     22,
+     24,
+     26,
+     28,
+     30,
+     32,
+     34,
+     36,
+     38,
+     40
+    ],
+    "width": "n",
+    "dtype": "float32",
+    "metric": "reconstruction",
+    "methods": [
+     "forward_noreortho",
+     "forward"
+    ]
+   },
+   "reprojection": {
+    "matrix": "normal",
+    "ns": [
+     32,
+     40,
+     48,
+     56,
+     64,
+     72,
+     80,
+     88,
+     96,
+     104,
+     112,
+     120
+    ],
+    "width": "n/2",
+    "dtype": "float32",
+    "metric": "jacobian",
+    "methods": [
+     "bidiag_adjoint_noreproj",
+     "bidiag_adjoint"
+    ]
+   }
+  },
+  "error": "RMS of I - d(L B R^T)/dA (jacobian) or of A - L B R^T (reconstruction)"
+ },
+ "records": [
+  {
+   "experiment": "normal",
+   "method": "bidiag_autodiff_noreortho",
+   "n": 4,
+   "error": 2.2021697696026347e-15
+  },
+  {
+   "experiment": "normal",
+   "method": "bidiag_autodiff_noreortho",
+   "n": 7,
+   "error": 1.4792541171129627e-13
+  },
+  {
+   "experiment": "normal",
+   "method": "bidiag_autodiff_noreortho",
+   "n": 10,
+   "error": 9.588855478433512e-11
+  },
+  {
+   "experiment": "normal",
+   "method": "bidiag_autodiff_noreortho",
+   "n": 13,
+   "error": 1.522658250319481e-08
+  },
+  {
+   "experiment": "normal",
+   "method": "bidiag_autodiff_noreortho",
+   "n": 16,
+   "error": 0.0016640201395509292
+  },
+  {
+   "experiment": "normal",
+   "method": "bidiag_autodiff_noreortho",
+   "n": 19,
+   "error": 0.08603586311688007
+  },
+  {
+   "experiment": "normal",
+   "method": "bidiag_autodiff_noreortho",
+   "n": 22,
+   "error": 0.14879352195113538
+  },
+  {
+   "experiment": "normal",
+   "method": "bidiag_autodiff_noreortho",
+   "n": 25,
+   "error": 0.7253791873749412
+  },
+  {
+   "experiment": "normal",
+   "method": "bidiag_autodiff_noreortho",
+   "n": 28,
+   "error": 0.18279482648611992
+  },
+  {
+   "experiment": "normal",
+   "method": "bidiag_autodiff_noreortho",
+   "n": 31,
+   "error": 0.3079338389935029
+  },
+  {
+   "experiment": "normal",
+   "method": "bidiag_autodiff_noreortho",
+   "n": 34,
+   "error": 0.08414497958318913
+  },
+  {
+   "experiment": "normal",
+   "method": "bidiag_autodiff_noreortho",
+   "n": 37,
+   "error": 0.20719376542204213
+  },
+  {
+   "experiment": "normal",
+   "method": "bidiag_autodiff",
+   "n": 4,
+   "error": 2.540362871285981e-16
+  },
+  {
+   "experiment": "normal",
+   "method": "bidiag_autodiff",
+   "n": 7,
+   "error": 9.59508371278315e-17
+  },
+  {
+   "experiment": "normal",
+   "method": "bidiag_autodiff",
+   "n": 10,
+   "error": 2.2031789253300311e-16
+  },
+  {
+   "experiment": "normal",
+   "method": "bidiag_autodiff",
+   "n": 13,
+   "error": 3.43698202961073e-16
+  },
+  {
+   "experiment": "normal",
+   "method": "bidiag_autodiff",
+   "n": 16,
+   "error": 1.4580244400181478e-16
+  },
+  {
+   "experiment": "normal",
+   "method": "bidiag_autodiff",
+   "n": 19,
+   "error": 4.0961925212879226e-16
+  },
+  {
+   "experiment": "normal",
+   "method": "bidiag_autodiff",
+   "n": 22,
+   "error": 1.4510077511859783e-16
+  },
+  {
+   "experiment": "normal",
+   "method": "bidiag_autodiff",
+   "n": 25,
+   "error": 1.1938655421562355e-15
+  },
+  {
+   "experiment": "normal",
+   "method": "bidiag_autodiff",
+   "n": 28,
+   "error": 2.719918942377399e-16
+  },
+  {
+   "experiment": "normal",
+   "method": "bidiag_autodiff",
+   "n": 31,
+   "error": 2.1191350314873314e-16
+  },
+  {
+   "experiment": "normal",
+   "method": "bidiag_autodiff",
+   "n": 34,
+   "error": 1.468408970140748e-15
+  },
+  {
+   "experiment": "normal",
+   "method": "bidiag_autodiff",
+   "n": 37,
+   "error": 2.8604797671932067e-16
+  },
+  {
+   "experiment": "normal",
+   "method": "bidiag_adjoint_noreproj",
+   "n": 4,
+   "error": 2.9087279757760663e-16
+  },
+  {
+   "experiment": "normal",
+   "method": "bidiag_adjoint_noreproj",
+   "n": 7,
+   "error": 1.1489163848535578e-16
+  },
+  {
+   "experiment": "normal",
+   "method": "bidiag_adjoint_noreproj",
+   "n": 10,
+   "error": 3.9342982998363956e-16
+  },
+  {
+   "experiment": "normal",
+   "method": "bidiag_adjoint_noreproj",
+   "n": 13,
+   "error": 4.266915924969653e-16
+  },
+  {
+   "experiment": "normal",
+   "method": "bidiag_adjoint_noreproj",
+   "n": 16,
+   "error": 3.5136359139140544e-16
+  },
+  {
+   "experiment": "normal",
+   "method": "bidiag_adjoint_noreproj",
+   "n": 19,
+   "error": 7.464191112468797e-16
+  },
+  {
+   "experiment": "normal",
+   "method": "bidiag_adjoint_noreproj",
+   "n": 22,
+   "error": 1.9568673680612224e-16
+  },
+  {
+   "experiment": "normal",
+   "method": "bidiag_adjoint_noreproj",
+   "n": 25,
+   "error": 1.4423684778317551e-15
+  },
+  {
+   "experiment": "normal",
+   "method": "bidiag_adjoint_noreproj",
+   "n": 28,
+   "error": 4.2182006921883646e-16
+  },
+  {
+   "experiment": "normal",
+   "method": "bidiag_adjoint_noreproj",
+   "n": 31,
+   "error": 2.5079845090557045e-16
+  },
+  {
+   "experiment": "normal",
+   "method": "bidiag_adjoint_noreproj",
+   "n": 34,
+   "error": 1.950245973328769e-15
+  },
+  {
+   "experiment": "normal",
+   "method": "bidiag_adjoint_noreproj",
+   "n": 37,
+   "error": 1.0274599918621935e-15
+  },
+  {
+   "experiment": "normal",
+   "method": "bidiag_adjoint",
+   "n": 4,
+   "error": 1.390776870453193e-16
+  },
+  {
+   "experiment": "normal",
+   "method": "bidiag_adjoint",
+   "n": 7,
+   "error": 6.931303458209575e-17
+  },
+  {
+   "experiment": "normal",
+   "method": "bidiag_adjoint",
+   "n": 10,
+   "error": 1.7179946028039755e-16
+  },
+  {
+   "experiment": "normal",
+   "method": "bidiag_adjoint",
+   "n": 13,
+   "error": 2.7296501186654936e-16
+  },
+  {
+   "experiment": "normal",
+   "method": "bidiag_adjoint",
+   "n": 16,
+   "error": 9.489331716478545e-17
+  },
+  {
+   "experiment": "normal",
+   "method": "bidiag_adjoint",
+   "n": 19,
+   "error": 2.745708431713952e-16
+  },
+  {
+   "experiment": "normal",
+   "method": "bidiag_adjoint",
+   "n": 22,
+   "error": 1.1243437937010422e-16
+  },
+  {
+   "experiment": "normal",
+   "method": "bidiag_adjoint",
+   "n": 25,
+   "error": 1.027538699541693e-15
+  },
+  {
+   "experiment": "normal",
+   "method": "bidiag_adjoint",
+   "n": 28,
+   "error": 2.591582954443264e-16
+  },
+  {
+   "experiment": "normal",
+   "method": "bidiag_adjoint",
+   "n": 31,
+   "error": 1.648932758979219e-16
+  },
+  {
+   "experiment": "normal",
+   "method": "bidiag_adjoint",
+   "n": 34,
+   "error": 1.1977238933158042e-15
+  },
+  {
+   "experiment": "normal",
+   "method": "bidiag_adjoint",
+   "n": 37,
+   "error": 2.3960595284607343e-16
+  },
+  {
+   "experiment": "cauchy",
+   "method": "bidiag_autodiff_noreortho",
+   "n": 4,
+   "error": 0.00020789496193174273
+  },
+  {
+   "experiment": "cauchy",
+   "method": "bidiag_autodiff_noreortho",
+   "n": 6,
+   "error": 0.5645641088485718
+  },
+  {
+   "experiment": "cauchy",
+   "method": "bidiag_autodiff_noreortho",
+   "n": 8,
+   "error": 1.4911603927612305
+  },
+  {
+   "experiment": "cauchy",
+   "method": "bidiag_autodiff_noreortho",
+   "n": 10,
+   "error": 0.27317991852760315
+  },
+  {
+   "experiment": "cauchy",
+   "method": "bidiag_autodiff_noreortho",
+   "n": 12,
+   "error": 0.5101622939109802
+  },
+  {
+   "experiment": "cauchy",
+   "method": "bidiag_autodiff_noreortho",
+   "n": 14,
+   "error": 0.4188592731952667
+  },
+  {
+   "experiment": "cauchy",
+   "method": "bidiag_autodiff_noreortho",
+   "n": 16,
+   "error": 0.3567936420440674
+  },
+  {
+   "experiment": "cauchy",
+   "method": "bidiag_autodiff_noreortho",
+   "n": 18,
+   "error": 1.640035629272461
+  },
+  {
+   "experiment": "cauchy",
+   "method": "bidiag_autodiff_noreortho",
+   "n": 20,
+   "error": 0.5246655941009521
+  },
+  {
+   "experiment": "cauchy",
+   "method": "bidiag_autodiff_noreortho",
+   "n": 22,
+   "error": 0.28947606682777405
+  },
+  {
+   "experiment": "cauchy",
+   "method": "bidiag_autodiff_noreortho",
+   "n": 24,
+   "error": 0.3425338864326477
+  },
+  {
+   "experiment": "cauchy",
+   "method": "bidiag_autodiff_noreortho",
+   "n": 26,
+   "error": 6.192140579223633
+  },
+  {
+   "experiment": "cauchy",
+   "method": "bidiag_autodiff_noreortho",
+   "n": 28,
+   "error": 0.5396273136138916
+  },
+  {
+   "experiment": "cauchy",
+   "method": "bidiag_autodiff_noreortho",
+   "n": 30,
+   "error": 3.7469429969787598
+  },
+  {
+   "experiment": "cauchy",
+   "method": "bidiag_autodiff_noreortho",
+   "n": 32,
+   "error": 2.3193857669830322
+  },
+  {
+   "experiment": "cauchy",
+   "method": "bidiag_autodiff_noreortho",
+   "n": 34,
+   "error": 0.30227380990982056
+  },
+  {
+   "experiment": "cauchy",
+   "method": "bidiag_autodiff_noreortho",
+   "n": 36,
+   "error": 0.30691269040107727
+  },
+  {
+   "experiment": "cauchy",
+   "method": "bidiag_autodiff_noreortho",
+   "n": 38,
+   "error": 1.2628576755523682
+  },
+  {
+   "experiment": "cauchy",
+   "method": "bidiag_autodiff_noreortho",
+   "n": 40,
+   "error": 0.8641942739486694
+  },
+  {
+   "experiment": "cauchy",
+   "method": "bidiag_autodiff",
+   "n": 4,
+   "error": NaN
+  },
+  {
+   "experiment": "cauchy",
+   "method": "bidiag_autodiff",
+   "n": 6,
+   "error": NaN
+  },
+  {
+   "experiment": "cauchy",
+   "method": "bidiag_autodiff",
+   "n": 8,
+   "error": NaN
+  },
+  {
+   "experiment": "cauchy",
+   "method": "bidiag_autodiff",
+   "n": 10,
+   "error": NaN
+  },
+  {
+   "experiment": "cauchy",
+   "method": "bidiag_autodiff",
+   "n": 12,
+   "error": NaN
+  },
+  {
+   "experiment": "cauchy",
+   "method": "bidiag_autodiff",
+   "n": 14,
+   "error": NaN
+  },
+  {
+   "experiment": "cauchy",
+   "method": "bidiag_autodiff",
+   "n": 16,
+   "error": NaN
+  },
+  {
+   "experiment": "cauchy",
+   "method": "bidiag_autodiff",
+   "n": 18,
+   "error": NaN
+  },
+  {
+   "experiment": "cauchy",
+   "method": "bidiag_autodiff",
+   "n": 20,
+   "error": NaN
+  },
+  {
+   "experiment": "cauchy",
+   "method": "bidiag_autodiff",
+   "n": 22,
+   "error": NaN
+  },
+  {
+   "experiment": "cauchy",
+   "method": "bidiag_autodiff",
+   "n": 24,
+   "error": NaN
+  },
+  {
+   "experiment": "cauchy",
+   "method": "bidiag_autodiff",
+   "n": 26,
+   "error": NaN
+  },
+  {
+   "experiment": "cauchy",
+   "method": "bidiag_autodiff",
+   "n": 28,
+   "error": NaN
+  },
+  {
+   "experiment": "cauchy",
+   "method": "bidiag_autodiff",
+   "n": 30,
+   "error": NaN
+  },
+  {
+   "experiment": "cauchy",
+   "method": "bidiag_autodiff",
+   "n": 32,
+   "error": NaN
+  },
+  {
+   "experiment": "cauchy",
+   "method": "bidiag_autodiff",
+   "n": 34,
+   "error": NaN
+  },
+  {
+   "experiment": "cauchy",
+   "method": "bidiag_autodiff",
+   "n": 36,
+   "error": NaN
+  },
+  {
+   "experiment": "cauchy",
+   "method": "bidiag_autodiff",
+   "n": 38,
+   "error": NaN
+  },
+  {
+   "experiment": "cauchy",
+   "method": "bidiag_autodiff",
+   "n": 40,
+   "error": NaN
+  },
+  {
+   "experiment": "cauchy",
+   "method": "bidiag_adjoint_noreproj",
+   "n": 4,
+   "error": 1.6409627789926162e-07
+  },
+  {
+   "experiment": "cauchy",
+   "method": "bidiag_adjoint_noreproj",
+   "n": 6,
+   "error": 1.1941624507016968e-06
+  },
+  {
+   "experiment": "cauchy",
+   "method": "bidiag_adjoint_noreproj",
+   "n": 8,
+   "error": 1.321193758485606e-05
+  },
+  {
+   "experiment": "cauchy",
+   "method": "bidiag_adjoint_noreproj",
+   "n": 10,
+   "error": 0.0004179608076810837
+  },
+  {
+   "experiment": "cauchy",
+   "method": "bidiag_adjoint_noreproj",
+   "n": 12,
+   "error": 0.00898541696369648
+  },
+  {
+   "experiment": "cauchy",
+   "method": "bidiag_adjoint_noreproj",
+   "n": 14,
+   "error": 0.0031410909723490477
+  },
+  {
+   "experiment": "cauchy",
+   "method": "bidiag_adjoint_noreproj",
+   "n": 16,
+   "error": 0.032292865216732025
+  },
+  {
+   "experiment": "cauchy",
+   "method": "bidiag_adjoint_noreproj",
+   "n": 18,
+   "error": 0.33556872606277466
+  },
+  {
+   "experiment": "cauchy",
+   "method": "bidiag_adjoint_noreproj",
+   "n": 20,
+   "error": 3.7659361362457275
+  },
+  {
+   "experiment": "cauchy",
+   "method": "bidiag_adjoint_noreproj",
+   "n": 22,
+   "error": 243.96240234375
+  },
+  {
+   "experiment": "cauchy",
+   "method": "bidiag_adjoint_noreproj",
+   "n": 24,
+   "error": 2852.39599609375
+  },
+  {
+   "experiment": "cauchy",
+   "method": "bidiag_adjoint_noreproj",
+   "n": 26,
+   "error": 94467.71875
+  },
+  {
+   "experiment": "cauchy",
+   "method": "bidiag_adjoint_noreproj",
+   "n": 28,
+   "error": 2916630.0
+  },
+  {
+   "experiment": "cauchy",
+   "method": "bidiag_adjoint_noreproj",
+   "n": 30,
+   "error": 23205028.0
+  },
+  {
+   "experiment": "cauchy",
+   "method": "bidiag_adjoint_noreproj",
+   "n": 32,
+   "error": 33159214.0
+  },
+  {
+   "experiment": "cauchy",
+   "method": "bidiag_adjoint_noreproj",
+   "n": 34,
+   "error": 207448256.0
+  },
+  {
+   "experiment": "cauchy",
+   "method": "bidiag_adjoint_noreproj",
+   "n": 36,
+   "error": 42753515520.0
+  },
+  {
+   "experiment": "cauchy",
+   "method": "bidiag_adjoint_noreproj",
+   "n": 38,
+   "error": 184082006016.0
+  },
+  {
+   "experiment": "cauchy",
+   "method": "bidiag_adjoint_noreproj",
+   "n": 40,
+   "error": 91663384969216.0
+  },
+  {
+   "experiment": "cauchy",
+   "method": "bidiag_adjoint",
+   "n": 4,
+   "error": 5.333777863825162e-08
+  },
+  {
+   "experiment": "cauchy",
+   "method": "bidiag_adjoint",
+   "n": 6,
+   "error": 1.0375209313906453e-07
+  },
+  {
+   "experiment": "cauchy",
+   "method": "bidiag_adjoint",
+   "n": 8,
+   "error": 2.3092233902843873e-07
+  },
+  {
+   "experiment": "cauchy",
+   "method": "bidiag_adjoint",
+   "n": 10,
+   "error": 8.565547204852919e-07
+  },
+  {
+   "experiment": "cauchy",
+   "method": "bidiag_adjoint",
+   "n": 12,
+   "error": 4.898733436675684e-07
+  },
+  {
+   "experiment": "cauchy",
+   "method": "bidiag_adjoint",
+   "n": 14,
+   "error": 1.6555880222313135e-07
+  },
+  {
+   "experiment": "cauchy",
+   "method": "bidiag_adjoint",
+   "n": 16,
+   "error": 1.7696430631986004e-07
+  },
+  {
+   "experiment": "cauchy",
+   "method": "bidiag_adjoint",
+   "n": 18,
+   "error": 1.4122039715402934e-07
+  },
+  {
+   "experiment": "cauchy",
+   "method": "bidiag_adjoint",
+   "n": 20,
+   "error": 1.5930862673485535e-07
+  },
+  {
+   "experiment": "cauchy",
+   "method": "bidiag_adjoint",
+   "n": 22,
+   "error": 2.8583940547832754e-07
+  },
+  {
+   "experiment": "cauchy",
+   "method": "bidiag_adjoint",
+   "n": 24,
+   "error": 3.322963948448887e-07
+  },
+  {
+   "experiment": "cauchy",
+   "method": "bidiag_adjoint",
+   "n": 26,
+   "error": 3.19922719427268e-07
+  },
+  {
+   "experiment": "cauchy",
+   "method": "bidiag_adjoint",
+   "n": 28,
+   "error": 5.155555982128135e-07
+  },
+  {
+   "experiment": "cauchy",
+   "method": "bidiag_adjoint",
+   "n": 30,
+   "error": 6.049573926247831e-07
+  },
+  {
+   "experiment": "cauchy",
+   "method": "bidiag_adjoint",
+   "n": 32,
+   "error": 1.1308945431665052e-05
+  },
+  {
+   "experiment": "cauchy",
+   "method": "bidiag_adjoint",
+   "n": 34,
+   "error": 3.216896686808468e-07
+  },
+  {
+   "experiment": "cauchy",
+   "method": "bidiag_adjoint",
+   "n": 36,
+   "error": 2.6863983748626197e-07
+  },
+  {
+   "experiment": "cauchy",
+   "method": "bidiag_adjoint",
+   "n": 38,
+   "error": 2.3941558424667164e-07
+  },
+  {
+   "experiment": "cauchy",
+   "method": "bidiag_adjoint",
+   "n": 40,
+   "error": 1.787186931778706e-07
+  },
+  {
+   "experiment": "cauchy_reconstruction",
+   "method": "forward_noreortho",
+   "n": 4,
+   "error": 6.0874721384607255e-05
+  },
+  {
+   "experiment": "cauchy_reconstruction",
+   "method": "forward_noreortho",
+   "n": 6,
+   "error": 0.03372501581907272
+  },
+  {
+   "experiment": "cauchy_reconstruction",
+   "method": "forward_noreortho",
+   "n": 8,
+   "error": 0.39700421690940857
+  },
+  {
+   "experiment": "cauchy_reconstruction",
+   "method": "forward_noreortho",
+   "n": 10,
+   "error": 0.3503691256046295
+  },
+  {
+   "experiment": "cauchy_reconstruction",
+   "method": "forward_noreortho",
+   "n": 12,
+   "error": 0.3541224002838135
+  },
+  {
+   "experiment": "cauchy_reconstruction",
+   "method": "forward_noreortho",
+   "n": 14,
+   "error": 0.594534158706665
+  },
+  {
+   "experiment": "cauchy_reconstruction",
+   "method": "forward_noreortho",
+   "n": 16,
+   "error": 0.5592588186264038
+  },
+  {
+   "experiment": "cauchy_reconstruction",
+   "method": "forward_noreortho",
+   "n": 18,
+   "error": 0.6382308602333069
+  },
+  {
+   "experiment": "cauchy_reconstruction",
+   "method": "forward_noreortho",
+   "n": 20,
+   "error": 0.716020941734314
+  },
+  {
+   "experiment": "cauchy_reconstruction",
+   "method": "forward_noreortho",
+   "n": 22,
+   "error": 0.7075955867767334
+  },
+  {
+   "experiment": "cauchy_reconstruction",
+   "method": "forward_noreortho",
+   "n": 24,
+   "error": 0.6744718551635742
+  },
+  {
+   "experiment": "cauchy_reconstruction",
+   "method": "forward_noreortho",
+   "n": 26,
+   "error": 0.6515935063362122
+  },
+  {
+   "experiment": "cauchy_reconstruction",
+   "method": "forward_noreortho",
+   "n": 28,
+   "error": 0.7985644936561584
+  },
+  {
+   "experiment": "cauchy_reconstruction",
+   "method": "forward_noreortho",
+   "n": 30,
+   "error": 0.7715441584587097
+  },
+  {
+   "experiment": "cauchy_reconstruction",
+   "method": "forward_noreortho",
+   "n": 32,
+   "error": 0.8804584741592407
+  },
+  {
+   "experiment": "cauchy_reconstruction",
+   "method": "forward_noreortho",
+   "n": 34,
+   "error": 0.8888831734657288
+  },
+  {
+   "experiment": "cauchy_reconstruction",
+   "method": "forward_noreortho",
+   "n": 36,
+   "error": 0.8635095357894897
+  },
+  {
+   "experiment": "cauchy_reconstruction",
+   "method": "forward_noreortho",
+   "n": 38,
+   "error": 0.8341702222824097
+  },
+  {
+   "experiment": "cauchy_reconstruction",
+   "method": "forward_noreortho",
+   "n": 40,
+   "error": 0.9506803750991821
+  },
+  {
+   "experiment": "cauchy_reconstruction",
+   "method": "forward",
+   "n": 4,
+   "error": 6.200118463084436e-08
+  },
+  {
+   "experiment": "cauchy_reconstruction",
+   "method": "forward",
+   "n": 6,
+   "error": 6.514229511367375e-08
+  },
+  {
+   "experiment": "cauchy_reconstruction",
+   "method": "forward",
+   "n": 8,
+   "error": 7.713690308719379e-08
+  },
+  {
+   "experiment": "cauchy_reconstruction",
+   "method": "forward",
+   "n": 10,
+   "error": 6.959815124218949e-08
+  },
+  {
+   "experiment": "cauchy_reconstruction",
+   "method": "forward",
+   "n": 12,
+   "error": 4.838497247305895e-08
+  },
+  {
+   "experiment": "cauchy_reconstruction",
+   "method": "forward",
+   "n": 14,
+   "error": 6.344833280991224e-08
+  },
+  {
+   "experiment": "cauchy_reconstruction",
+   "method": "forward",
+   "n": 16,
+   "error": 5.55992549777784e-08
+  },
+  {
+   "experiment": "cauchy_reconstruction",
+   "method": "forward",
+   "n": 18,
+   "error": 5.6817746951765e-08
+  },
+  {
+   "experiment": "cauchy_reconstruction",
+   "method": "forward",
+   "n": 20,
+   "error": 5.676027114986937e-08
+  },
+  {
+   "experiment": "cauchy_reconstruction",
+   "method": "forward",
+   "n": 22,
+   "error": 5.530944235943025e-08
+  },
+  {
+   "experiment": "cauchy_reconstruction",
+   "method": "forward",
+   "n": 24,
+   "error": 4.9000757229578085e-08
+  },
+  {
+   "experiment": "cauchy_reconstruction",
+   "method": "forward",
+   "n": 26,
+   "error": 5.128497448936287e-08
+  },
+  {
+   "experiment": "cauchy_reconstruction",
+   "method": "forward",
+   "n": 28,
+   "error": 6.0044627048228e-08
+  },
+  {
+   "experiment": "cauchy_reconstruction",
+   "method": "forward",
+   "n": 30,
+   "error": 5.2527916238886974e-08
+  },
+  {
+   "experiment": "cauchy_reconstruction",
+   "method": "forward",
+   "n": 32,
+   "error": 5.0888477431954016e-08
+  },
+  {
+   "experiment": "cauchy_reconstruction",
+   "method": "forward",
+   "n": 34,
+   "error": 4.7134474101540036e-08
+  },
+  {
+   "experiment": "cauchy_reconstruction",
+   "method": "forward",
+   "n": 36,
+   "error": 4.892393690170138e-08
+  },
+  {
+   "experiment": "cauchy_reconstruction",
+   "method": "forward",
+   "n": 38,
+   "error": 5.0279258090313306e-08
+  },
+  {
+   "experiment": "cauchy_reconstruction",
+   "method": "forward",
+   "n": 40,
+   "error": 5.0893753211767034e-08
+  },
+  {
+   "experiment": "reprojection",
+   "method": "bidiag_adjoint_noreproj",
+   "n": 32,
+   "error": 0.0004639675316866487
+  },
+  {
+   "experiment": "reprojection",
+   "method": "bidiag_adjoint_noreproj",
+   "n": 40,
+   "error": 4.533218816504814e-05
+  },
+  {
+   "experiment": "reprojection",
+   "method": "bidiag_adjoint_noreproj",
+   "n": 48,
+   "error": 0.01389694306999445
+  },
+  {
+   "experiment": "reprojection",
+   "method": "bidiag_adjoint_noreproj",
+   "n": 56,
+   "error": 1.7646487951278687
+  },
+  {
+   "experiment": "reprojection",
+   "method": "bidiag_adjoint_noreproj",
+   "n": 64,
+   "error": 2.0015108585357666
+  },
+  {
+   "experiment": "reprojection",
+   "method": "bidiag_adjoint_noreproj",
+   "n": 72,
+   "error": 30.58727264404297
+  },
+  {
+   "experiment": "reprojection",
+   "method": "bidiag_adjoint_noreproj",
+   "n": 80,
+   "error": 416.2084045410156
+  },
+  {
+   "experiment": "reprojection",
+   "method": "bidiag_adjoint_noreproj",
+   "n": 88,
+   "error": 2197.907470703125
+  },
+  {
+   "experiment": "reprojection",
+   "method": "bidiag_adjoint_noreproj",
+   "n": 96,
+   "error": 17748.310546875
+  },
+  {
+   "experiment": "reprojection",
+   "method": "bidiag_adjoint_noreproj",
+   "n": 104,
+   "error": 644168.8125
+  },
+  {
+   "experiment": "reprojection",
+   "method": "bidiag_adjoint_noreproj",
+   "n": 112,
+   "error": 31006788.0
+  },
+  {
+   "experiment": "reprojection",
+   "method": "bidiag_adjoint_noreproj",
+   "n": 120,
+   "error": 164206336.0
+  },
+  {
+   "experiment": "reprojection",
+   "method": "bidiag_adjoint",
+   "n": 32,
+   "error": 5.7367184780332536e-08
+  },
+  {
+   "experiment": "reprojection",
+   "method": "bidiag_adjoint",
+   "n": 40,
+   "error": 2.304472417336001e-07
+  },
+  {
+   "experiment": "reprojection",
+   "method": "bidiag_adjoint",
+   "n": 48,
+   "error": 8.455950251118338e-08
+  },
+  {
+   "experiment": "reprojection",
+   "method": "bidiag_adjoint",
+   "n": 56,
+   "error": 1.7365775306643627e-07
+  },
+  {
+   "experiment": "reprojection",
+   "method": "bidiag_adjoint",
+   "n": 64,
+   "error": 2.917059021001478e-07
+  },
+  {
+   "experiment": "reprojection",
+   "method": "bidiag_adjoint",
+   "n": 72,
+   "error": 1.3158064575691242e-06
+  },
+  {
+   "experiment": "reprojection",
+   "method": "bidiag_adjoint",
+   "n": 80,
+   "error": 1.926029256082984e-07
+  },
+  {
+   "experiment": "reprojection",
+   "method": "bidiag_adjoint",
+   "n": 88,
+   "error": 2.0607249950899131e-07
+  },
+  {
+   "experiment": "reprojection",
+   "method": "bidiag_adjoint",
+   "n": 96,
+   "error": 2.2959238776820712e-07
+  },
+  {
+   "experiment": "reprojection",
+   "method": "bidiag_adjoint",
+   "n": 104,
+   "error": 7.699213711021002e-08
+  },
+  {
+   "experiment": "reprojection",
+   "method": "bidiag_adjoint",
+   "n": 112,
+   "error": 2.1578128439614375e-07
+  },
+  {
+   "experiment": "reprojection",
+   "method": "bidiag_adjoint",
+   "n": 120,
+   "error": 9.034623360548721e-08
+  }
+ ]
+}

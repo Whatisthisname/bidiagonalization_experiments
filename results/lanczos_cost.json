@@ -1,0 +1,250 @@
+{
+ "config": {
+  "dtype": "float32",
+  "device": "cpu: arm",
+  "jax": "0.11.2",
+  "timing": "median of 3 runs after warm-up, or a single run above 5 s"
+ },
+ "records": [
+  {
+   "operator": "convolution",
+   "rows": 20030,
+   "cols": 20000,
+   "nnz": null,
+   "depth": 128,
+   "method": "bidiag",
+   "reorthogonalize": true,
+   "seconds": 0.4047627910040319
+  },
+  {
+   "operator": "convolution",
+   "rows": 20030,
+   "cols": 20000,
+   "nnz": null,
+   "depth": 128,
+   "method": "bidiag",
+   "reorthogonalize": false,
+   "seconds": 0.15877004200592637
+  },
+  {
+   "operator": "convolution",
+   "rows": 20030,
+   "cols": 20000,
+   "nnz": null,
+   "depth": 128,
+   "method": "lanczos_gram",
+   "reorthogonalize": true,
+   "seconds": 0.161967541964259
+  },
+  {
+   "operator": "convolution",
+   "rows": 20030,
+   "cols": 20000,
+   "nnz": null,
+   "depth": 128,
+   "method": "lanczos_gram",
+   "reorthogonalize": false,
+   "seconds": 0.021916625031735748
+  },
+  {
+   "operator": "Kemelmacher",
+   "rows": 28452,
+   "cols": 9693,
+   "nnz": 100875,
+   "depth": 100,
+   "method": "bidiag",
+   "reorthogonalize": true,
+   "seconds": 0.28123958298237994
+  },
+  {
+   "operator": "Kemelmacher",
+   "rows": 28452,
+   "cols": 9693,
+   "nnz": 100875,
+   "depth": 100,
+   "method": "bidiag",
+   "reorthogonalize": false,
+   "seconds": 0.12341016699792817
+  },
+  {
+   "operator": "Kemelmacher",
+   "rows": 28452,
+   "cols": 9693,
+   "nnz": 100875,
+   "depth": 100,
+   "method": "lanczos_gram",
+   "reorthogonalize": true,
+   "seconds": 0.0870964169735089
+  },
+  {
+   "operator": "Kemelmacher",
+   "rows": 28452,
+   "cols": 9693,
+   "nnz": 100875,
+   "depth": 100,
+   "method": "lanczos_gram",
+   "reorthogonalize": false,
+   "seconds": 0.05278954200912267
+  },
+  {
+   "operator": "tomographic1",
+   "rows": 73159,
+   "cols": 59498,
+   "nnz": 647495,
+   "depth": 100,
+   "method": "bidiag",
+   "reorthogonalize": true,
+   "seconds": 1.227912208007183
+  },
+  {
+   "operator": "tomographic1",
+   "rows": 73159,
+   "cols": 59498,
+   "nnz": 647495,
+   "depth": 100,
+   "method": "bidiag",
+   "reorthogonalize": false,
+   "seconds": 0.5016209160094149
+  },
+  {
+   "operator": "tomographic1",
+   "rows": 73159,
+   "cols": 59498,
+   "nnz": 647495,
+   "depth": 100,
+   "method": "lanczos_gram",
+   "reorthogonalize": true,
+   "seconds": 0.6431359160342254
+  },
+  {
+   "operator": "tomographic1",
+   "rows": 73159,
+   "cols": 59498,
+   "nnz": 647495,
+   "depth": 100,
+   "method": "lanczos_gram",
+   "reorthogonalize": false,
+   "seconds": 0.29005599999800324
+  },
+  {
+   "operator": "image_interp",
+   "rows": 240000,
+   "cols": 120000,
+   "nnz": 711683,
+   "depth": 100,
+   "method": "bidiag",
+   "reorthogonalize": true,
+   "seconds": 2.763522125023883
+  },
+  {
+   "operator": "image_interp",
+   "rows": 240000,
+   "cols": 120000,
+   "nnz": 711683,
+   "depth": 100,
+   "method": "bidiag",
+   "reorthogonalize": false,
+   "seconds": 0.8900470000226051
+  },
+  {
+   "operator": "image_interp",
+   "rows": 240000,
+   "cols": 120000,
+   "nnz": 711683,
+   "depth": 100,
+   "method": "lanczos_gram",
+   "reorthogonalize": true,
+   "seconds": 1.113874582981225
+  },
+  {
+   "operator": "image_interp",
+   "rows": 240000,
+   "cols": 120000,
+   "nnz": 711683,
+   "depth": 100,
+   "method": "lanczos_gram",
+   "reorthogonalize": false,
+   "seconds": 0.30085270799463615
+  },
+  {
+   "operator": "ESOC",
+   "rows": 327062,
+   "cols": 37830,
+   "nnz": 6019939,
+   "depth": 100,
+   "method": "bidiag",
+   "reorthogonalize": true,
+   "seconds": 5.455343875044491
+  },
+  {
+   "operator": "ESOC",
+   "rows": 327062,
+   "cols": 37830,
+   "nnz": 6019939,
+   "depth": 100,
+   "method": "bidiag",
+   "reorthogonalize": false,
+   "seconds": 3.3450802919687703
+  },
+  {
+   "operator": "ESOC",
+   "rows": 327062,
+   "cols": 37830,
+   "nnz": 6019939,
+   "depth": 100,
+   "method": "lanczos_gram",
+   "reorthogonalize": true,
+   "seconds": 2.784808333031833
+  },
+  {
+   "operator": "ESOC",
+   "rows": 327062,
+   "cols": 37830,
+   "nnz": 6019939,
+   "depth": 100,
+   "method": "lanczos_gram",
+   "reorthogonalize": false,
+   "seconds": 2.609612041967921
+  },
+  {
+   "operator": "Rucci1",
+   "rows": 1977885,
+   "cols": 109900,
+   "nnz": 7791168,
+   "depth": 100,
+   "method": "bidiag",
+   "reorthogonalize": true,
+   "seconds": 18.874509459012188
+  },
+  {
+   "operator": "Rucci1",
+   "rows": 1977885,
+   "cols": 109900,
+   "nnz": 7791168,
+   "depth": 100,
+   "method": "bidiag",
+   "reorthogonalize": false,
+   "seconds": 6.445965291990433
+  },
+  {
+   "operator": "Rucci1",
+   "rows": 1977885,
+   "cols": 109900,
+   "nnz": 7791168,
+   "depth": 100,
+   "method": "lanczos_gram",
+   "reorthogonalize": true,
+   "seconds": 4.386687249992974
+  },
+  {
+   "operator": "Rucci1",
+   "rows": 1977885,
+   "cols": 109900,
+   "nnz": 7791168,
+   "depth": 100,
+   "method": "lanczos_gram",
+   "reorthogonalize": false,
+   "seconds": 3.6455542499898
+  }
+ ]
+}

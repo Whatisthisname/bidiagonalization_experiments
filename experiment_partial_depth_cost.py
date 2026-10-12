@@ -10,12 +10,12 @@ Memory is XLA's compiled buffer assignment (arguments + outputs + temporaries)
 for jit(value_and_grad), so it is reported even where the program would not
 fit into this machine's RAM. Time is measured only where the program fits.
 
+Results go to results/partial_depth_cost.json; `plot_figures.py` draws them.
+
 Usage:
-    python experiment_partial_depth_cost.py              # compute and plot
-    python experiment_partial_depth_cost.py --plot-only  # re-plot from JSON
+    python experiment_partial_depth_cost.py
 """
 
-import argparse
 import json
 import os
 import platform
@@ -23,11 +23,9 @@ import time
 
 import jax
 import jax.numpy as jnp
-import matplotlib.pyplot as plt
 import numpy as np
 from matfree import decomp
 
-import plot_style
 from algo_bidiag import bidiagonalize
 
 SIZE = 20_000
@@ -36,26 +34,11 @@ MEMORY_DEPTHS = (16, 32, 64, 128, 256, 512)
 TIME_DEPTHS = (16, 32, 64, 128, 256)
 TIME_MEMORY_LIMIT_BYTES = 12e9
 TIME_REPEATS = 3
-DEVICE_LIMITS = ((16e9, "16 GB"), (80e9, "80 GB (A100/H100)"))
 
 METHODS = ("forward", "bidiag_adjoint", "bidiag_autodiff", "lanczos_gram", "arnoldi_augmented")
-LABELS = {
-    "forward": "Forward pass only",
-    "bidiag_adjoint": "Bidiag adjoint (ours)",
-    "bidiag_autodiff": "Bidiag autodiff",
-    "lanczos_gram": r"Lanczos adjoint on $A^\top A$",
-    "arnoldi_augmented": "Arnoldi adjoint, augmented",
-}
-STYLES = {
-    "forward": {"color": plot_style.FORWARD_COLOR, "marker": "o", "linestyle": "--"},
-    "bidiag_adjoint": {"color": plot_style.ADJOINT_COLOR, "marker": "o", "zorder": 4},
-    "bidiag_autodiff": {"color": plot_style.AUTODIFF_COLOR, "marker": "s"},
-    "lanczos_gram": {"color": "C3", "marker": "^"},
-    "arnoldi_augmented": {"color": "C2", "marker": "v"},
-}
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-RESULTS_PATH = os.path.join(HERE, "results_partial_depth_cost.json")
+RESULTS_PATH = os.path.join(HERE, "results", "partial_depth_cost.json")
 
 
 def conv(v, theta):
@@ -161,46 +144,12 @@ def compute():
     }
 
 
-def plot(results):
-    plot_style.use_paper_style()
-    records = results["records"]
-    fig, (ax_mem, ax_time) = plt.subplots(1, 2, figsize=(7.0, 2.8))
-    for m in METHODS:
-        rows = sorted((r for r in records if r["method"] == m), key=lambda r: r["depth"])
-        style = dict(STYLES[m], markersize=plot_style.MARKERSIZE, linewidth=plot_style.LINEWIDTH)
-        ax_mem.plot([r["depth"] for r in rows], [r["bytes"] / 1e9 for r in rows], label=LABELS[m], **style)
-        timed = [r for r in rows if r["seconds"] is not None]
-        ax_time.plot([r["depth"] for r in timed], [r["seconds"] for r in timed], label=LABELS[m], **style)
-    for limit, label in DEVICE_LIMITS:
-        ax_mem.axhline(limit / 1e9, color="gray", linestyle=":", linewidth=0.8)
-        ax_mem.text(MEMORY_DEPTHS[0], limit / 1e9 * 1.25, label, fontsize="x-small", color="gray")
-    for ax in (ax_mem, ax_time):
-        ax.set_xscale("log", base=2)
-    plot_style.style_axis(ax_mem, r"Krylov depth $k$", "Memory (GB)", legend=False)
-    plot_style.style_axis(ax_time, r"Krylov depth $k$", "Wall-clock time (s)", legend=False)
-    size = f"{results['config']['size']:,}".replace(",", "{,}")
-    ax_mem.set_title(rf"Memory, $n = {size}$")
-    ax_time.set_title("Time (CPU)")
-    ax_time.legend(fontsize="x-small", loc="upper left")
-    return fig
-
-
 def main():
-    parser = argparse.ArgumentParser()
-    parser.add_argument("--plot-only", action="store_true")
-    args = parser.parse_args()
-
-    if args.plot_only:
-        with open(RESULTS_PATH) as f:
-            results = json.load(f)
-    else:
-        results = compute()
-        with open(RESULTS_PATH, "w") as f:
-            json.dump(results, f, indent=1)
-
-    out = os.path.join(HERE, "latex", "figures", "fig_partial_depth_cost.pdf")
-    plot(results).savefig(out, bbox_inches="tight")
-    print(f"Saved {out}")
+    results = compute()
+    os.makedirs(os.path.dirname(RESULTS_PATH), exist_ok=True)
+    with open(RESULTS_PATH, "w") as f:
+        json.dump(results, f, indent=1)
+    print(f"Saved {RESULTS_PATH}")
 
 
 if __name__ == "__main__":
