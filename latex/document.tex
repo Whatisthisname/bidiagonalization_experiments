@@ -9,6 +9,8 @@
 \usepackage{physics}
 \usepackage{bbm}
 \usepackage{graphicx}
+\usepackage{booktabs}
+\usepackage{placeins}
 \usepackage{mdframed}
 \DeclareMathOperator*{\argmax}{arg\,max}
 \DeclareMathOperator*{\argmin}{arg\,min}
@@ -625,7 +627,7 @@ For Hessenberg factorization the relevant constraint is $Q^\top q_i = e_i$ \eqre
 \end{figure}
 
 \section{Experiments}\label{sec:experiments}
-All methods are implemented in JAX~\citep{jax2018github}. We compare three ways of differentiating Bidiagonalization: reverse-mode automatic differentiation through the unrolled iteration (\textit{autodiff}), the stable adjoint derived above (\textit{adjoint}), and, as a reference, the forward pass on its own. We also compare against the augmented Hessenberg formulation. Unless stated otherwise, the matrix is dense and accessed through a diagonal matrix-vector product, and timings are averaged over repeated runs after compilation. The hardware and software configuration is recorded alongside the raw measurements.
+All methods are implemented in JAX~\citep{jax2018github}. We compare three ways of differentiating Bidiagonalization: reverse-mode automatic differentiation through the unrolled iteration (\textit{autodiff}), the stable adjoint derived above (\textit{adjoint}), and, as a reference, the forward pass on its own. We also compare against the augmented Hessenberg formulation. Unless stated otherwise, the matrix is dense and accessed through a diagonal matrix-vector product, and timings are averaged over repeated runs after compilation. The hardware and software configuration is recorded alongside the raw measurements. The first set of experiments runs the iteration to full depth; Section~\ref{subsec:partial_depth} repeats the comparison at partial depth, against the Lanczos adjoint applied to $A^\top A$, and on large sparse matrices.
 
 \paragraph{Experimental setup.}
 Our implementation applies \emph{two} reorthonormalization passes per Krylov step whenever forward reorthonormalization is enabled (the ``twice is enough'' rule of \citet{golub2013matrix}). Timing experiments (Figures~\ref{fig:compile} and~\ref{fig:backward}) and all adjoint curves use this reorthonormalized forward pass throughout. What varies across accuracy figures is the \emph{backward} pass: autodiff differentiates through whatever the forward pass does; adjoint curves labeled ``w/ reproj'' apply one reprojection pass per step in the custom VJP, whereas ``w/o reproj'' turns that correction off while still running the reorthonormalized forward pass. Figures~\ref{fig:reprojection}, \ref{fig:hilbert_stability}, and~\ref{fig:hilbert_reconstruction} use single precision (float32); Figure~\ref{fig:stability} uses double precision (float64) on dense random $n \times n$ matrices with $k=n$. Figure~\ref{fig:reprojection} uses random $n \times (n/2)$ matrices with $k=n/2$; Figures~\ref{fig:hilbert_stability} and~\ref{fig:hilbert_reconstruction} use Cauchy matrices $C_{ij}=1/(1+|i-j|)$ on $n \times n$ problems with $k=n$ (symmetric positive-definite, $\kappa(C)\approx 15$ at $n=40$ versus $\kappa(H)\approx 10^{10}$ for the Hilbert matrix). Gradient accuracy is measured by bidiagonalizing $A$, reconstructing $LBR^\top$, and reporting the RMS error $\|\partial(LBR^\top)/\partial A - I\|_{\mathrm{rms}}$ (the Jacobian of reconstruction should be the identity).
@@ -667,8 +669,60 @@ Our implementation applies \emph{two} reorthonormalization passes per Krylov ste
 
 Compile time tells the simplest story (Figure~\ref{fig:compile}): the adjoint stays within a small factor of the forward pass, while autodiff keeps getting more expensive because it has to trace the whole unrolled iteration. Run time looks the same, with one extra wrinkle---autodiff eventually exhausts memory and stops, whereas the adjoint keeps going to much larger problems (Figure~\ref{fig:backward}). The accuracy gap is the widest of the three. As the matrix grows the adjoint tracks the true gradient to roughly seven orders of magnitude, while autodiff slowly drifts; and once the forward reorthonormalization itself is differentiated through, autodiff returns NaNs and is unusable (Figure~\ref{fig:stability}). The same pattern appears on a mildly ill-conditioned Cauchy test matrix (Figure~\ref{fig:hilbert_stability}): the forward pass needs reorthonormalization to reconstruct $A$ (Figure~\ref{fig:hilbert_reconstruction}), autodiff through that reorthonormalization fails in single precision, and the reprojection-corrected adjoint remains accurate.
 
+\subsection{Partial depth}\label{subsec:partial_depth}
+The experiments above run the iteration to full depth, $k = \min(N, M)$, where the reconstruction $LBR^\top = A$ provides a convenient ground truth. Applications stop much earlier: LSQR~\citep{paige1982lsqr}, partial singular value decompositions, and stochastic Lanczos quadrature for spectral sums~\citep{ubaru2017fast} all use $k \ll \min(N, M)$ steps. This section repeats the comparison in that regime and adds the two matrix-free alternatives that already come with stable adjoints.
+
+\paragraph{Loss and methods.}
+We differentiate the $k$-step quadrature estimate of $v^\top \log(A^\top A)\, v$,
+\begin{align}\label{eq:slq_loss}
+    \rho(A) = \|v\|^2\, e_1^\top \log(B^\top B)\, e_1 = \|v\|^2 \sum_{i=1}^{k} (e_1^\top w_i)^2 \log \sigma_i^2,
+\end{align}
+where $B = \sum_{i} \sigma_i u_i w_i^\top$ is the singular value decomposition of the bidiagonal matrix computed from the start vector $v$. Averaged over random start vectors, $\rho$ is the stochastic Lanczos quadrature estimate of $\log\det(A^\top A)$~\citep{ubaru2017fast}. Unlike the reconstruction error, it depends on every output of the iteration and is meaningful at any depth. Since $B^\top B$ equals the tridiagonal matrix $T$ produced by $k$ steps of the Lanczos iteration on $A^\top A$ with the same start vector, there are four ways to compute $\nabla_A \rho$ that agree in exact arithmetic:
+\begin{enumerate}
+    \item \textit{Adjoint}: the stable adjoint of Section~\ref{subsec:stable_adjoint_system}.
+    \item \textit{Autodiff}: reverse-mode automatic differentiation through the reorthonormalized iteration.
+    \item \textit{Lanczos on $A^\top A$}: $\rho = \|v\|^2 e_1^\top \log(T)\, e_1$, differentiated with the reorthogonalized Lanczos adjoint of \citet{kraemer2024gradients}.
+    \item \textit{Augmented Arnoldi}: $\overline{\texttt{Bidiagonalize}}_k$ from Section~\ref{sec:bidiag_through_hessenberg}, i.e., $2k$ Arnoldi steps on the augmented matrix, differentiated with the Arnoldi adjoint of \citet{kraemer2024gradients}.
+\end{enumerate}
+Methods 3 and 4 use the \texttt{matfree} library that accompanies \citet{kraemer2024gradients}. All four methods fully reorthonormalize in the forward pass. Appendix~\ref{app:partial_depth_setup} lists the remaining details.
+
+\paragraph{Accuracy.}
+Figure~\ref{fig:precision_sweep} measures the single-precision gradient error on $1000 \times 500$ matrices with geometrically decaying singular values, relative to a double-precision reference. The three bidiagonalization-based methods produce the same gradients, and their error grows gradually, from $4 \cdot 10^{-6}$ at $\kappa(A) = 10$ to $2 \cdot 10^{-3}$ at $\kappa(A) = 10^6$. The Lanczos adjoint on $A^\top A$ is two orders of magnitude less accurate already at $\kappa(A) = 10$, reaches $49\%$ error at $\kappa(A) = 10^4$, and returns NaNs for two of five matrices at $\kappa(A) = 10^5$ and three of five at $\kappa(A) = 10^6$, because rounding errors in products with $A^\top A$ make some Ritz values negative. The right panel shows the same mechanism as a function of depth: deeper Krylov spaces resolve smaller singular values, whose squares are lost in the rounding errors of $A^\top A$. At $\kappa(A) = 10^4$, the Lanczos error grows from $2 \cdot 10^{-4}$ at $k = 25$ to $69\%$ at $k = 300$, while the bidiagonalization-based methods stay below $2 \cdot 10^{-4}$. In double precision, all four methods agree to within $8 \cdot 10^{-8}$.
+
+Two observations differ from the full-depth experiments. First, autodiff through the reorthonormalized iteration is as accurate as the adjoint; in our experiments, the NaNs of Figure~\ref{fig:stability} appeared only at full depth. \citet[Table~2]{kraemer2024gradients} make the same observation for the Arnoldi iteration. Second, the augmented formulation is equally accurate. At partial depth, the case for the adjoint over these two alternatives therefore rests on cost.
+
+\begin{figure}[t]
+    \centering
+    \includegraphics[width=\linewidth]{fig_precision_sweep.pdf}
+    \caption{Single-precision gradient error of the log-det quadrature~\eqref{eq:slq_loss} on $1000 \times 500$ matrices with singular values decaying geometrically from $1$ to $1/\kappa(A)$. Left: against $\kappa(A)$ at depth $k = 250$. Right: against depth at $\kappa(A) = 10^4$. Lines show the median over five random matrices, shaded regions the range; NaNs and errors above $100\%$ are drawn at $1$. The adjoint, autodiff, and the augmented formulation overlap, while the Lanczos adjoint on $A^\top A$ squares the condition number and fails.}
+    \label{fig:precision_sweep}
+\end{figure}
+
+\paragraph{Memory and run time.}
+Figure~\ref{fig:partial_depth_cost} differentiates the same loss for a matrix-free operator: a one-dimensional convolution $A(\theta)v = \theta * v$ with $31$ learnable weights, mapping $\mathbb{R}^{20{,}000}$ to $\mathbb{R}^{20{,}030}$, differentiated with respect to $\theta$. The adjoint's memory grows linearly in $k$ and stays at about $1.5\times$ that of the forward pass, and its run time is $1.6$--$2.3\times$ that of the forward pass. Autodiff stores the Krylov basis at every step, so its memory grows quadratically in $k$: $12$\,GB at $k = 128$, $48$\,GB at $k = 256$, and $190$\,GB at $k = 512$, more than an 80\,GB accelerator holds, where the adjoint needs $0.25$\,GB. The augmented formulation runs $2k$ steps on vectors of length $N + M$; it needs about $4.6\times$ the adjoint's memory and is $8$--$11\times$ slower for $k \geq 64$. The Lanczos adjoint on $A^\top A$ costs about as much as ours; its drawback is accuracy (Figure~\ref{fig:precision_sweep}).
+
+\begin{figure}[t]
+    \centering
+    \includegraphics[width=\linewidth]{fig_partial_depth_cost.pdf}
+    \caption{Memory (left) and CPU run time (right) of the value and gradient of the log-det quadrature~\eqref{eq:slq_loss} for a matrix-free convolution operator with $n = 20{,}000$, against depth $k$. Memory is XLA's compiled buffer assignment, which is available without running the program; programs above $12$\,GB were not timed. Dotted lines mark common accelerator memory sizes.}
+    \label{fig:partial_depth_cost}
+\end{figure}
+
+\paragraph{SuiteSparse matrices.}
+\citet[Figure~3]{kraemer2024gradients} demonstrate the cost of backpropagating through the Lanczos iteration on a matrix from the SuiteSparse collection. Table~\ref{tab:suitesparse} repeats this demonstration for bidiagonalization on five rectangular SuiteSparse matrices~\citep{davis2011university,kolodziej2019suitesparse} from imaging and least-squares applications, with up to two million rows and 7.8 million nonzeros. We differentiate the loss~\eqref{eq:slq_loss} at depth $k = 100$ with respect to the nonzero values of $A$, using sparse matrix-vector products. Autodiff would need between 6\,GB and 277\,GB, so we ran it only on the smallest matrix; on the largest, \texttt{Rucci1}, it would need more than three times the memory of an 80\,GB accelerator. The adjoint needs at most 2.6\,GB, about $1.5\times$ the memory and $2\times$ the run time of the forward pass, and its gradient errors lie between $1.4 \cdot 10^{-6}$ and $6.3 \cdot 10^{-4}$. The augmented formulation is similarly accurate but needs $4$--$5\times$ the memory and $4$--$8\times$ the run time of the adjoint; on \texttt{Rucci1}, it needs 11.8\,GB. The Lanczos adjoint on $A^\top A$ is the cheapest method on tall matrices, because its Krylov basis has only $M$ rows. However, its gradients are $17$--$32\times$ less accurate than those of the adjoint on three of the five matrices, reaching $1.4\%$ error on \texttt{ESOC}; on the other two matrices, it is as accurate as the adjoint.
+
+\begin{table}[t]
+    \centering
+    \small
+    \setlength{\tabcolsep}{4pt}
+    \input{table_suitesparse.tex}
+    \caption{Value and gradient of the log-det quadrature~\eqref{eq:slq_loss} with respect to the nonzero values of five rectangular SuiteSparse matrices, at depth $k = 100$ in single precision. Memory is XLA's compiled buffer assignment; programs above 8\,GB were not run, and dashes mark the missing entries. Gradient errors are relative to a double-precision reference. Setup in Appendix~\ref{app:partial_depth_setup}.}
+    \label{tab:suitesparse}
+\end{table}
+
+\FloatBarrier
 \section{Conclusion}
-By viewing bidiagonalization as a Hessenberg factorization of an augmented symmetric matrix, we obtained a stable adjoint for it almost for free, and pruning the augmented system's zeros brought the cost back down to that of the original problem. The adjoint needs nothing beyond matrix-vector products and a reprojection step, and in our experiments it was the only one of the three methods that stayed both cheap and accurate at the larger sizes. The same augment-then-prune recipe should carry over to other structured factorizations that embed into a Hessenberg or symmetric Lanczos form; we leave that to future work.
+By viewing bidiagonalization as a Hessenberg factorization of an augmented symmetric matrix, we obtained a stable adjoint for it almost for free, and pruning the augmented system's zeros brought the cost back down to that of the original problem. The adjoint needs nothing beyond matrix-vector products and a reprojection step, and in our experiments it was the only one of the three methods that stayed both cheap and accurate at the larger sizes. At partial depth, it was the only method we tested that combines the accuracy of differentiating through the bidiagonalization with memory linear in the depth: autodiff and the augmented formulation are accurate but expensive, and the Lanczos adjoint on $A^\top A$ is cheap but squares the condition number. The same augment-then-prune recipe should carry over to other structured factorizations that embed into a Hessenberg or symmetric Lanczos form; we leave that to future work.
 
 \appendix
 \section{Sparsity proofs}\label{app:sparsity_proofs}
@@ -963,6 +1017,18 @@ c \nabla c &= r_1^\top\kappa
 \\
 \nabla A &= \sum_{n=1}^k -\lambda_n r_n^\top -l_n\rho_n^\top
 \end{align}
+
+\section{Setup of the partial-depth experiments}\label{app:partial_depth_setup}
+All partial-depth experiments evaluate the loss~\eqref{eq:slq_loss} in single precision (float32) and differentiate it with the four methods of Section~\ref{subsec:partial_depth}. The bidiagonalization-based methods evaluate~\eqref{eq:slq_loss} through the singular value decomposition of $B$; the Lanczos method evaluates $\|v\|^2 e_1^\top \log(T)\, e_1$ through the eigendecomposition of $T$. For the augmented formulation, we read $\alpha_i$ and $\beta_i$ off the averaged super- and subdiagonals of the $2k \times 2k$ Hessenberg matrix. Methods 3 and 4 call \texttt{tridiag\_sym} and \texttt{hessenberg} from \texttt{matfree} 0.6.2 with full reorthogonalization and custom gradients; \texttt{matfree} implements reorthogonalized Lanczos through its Arnoldi code. All experiments ran on the CPU of an Apple M1 Pro with 16\,GB of memory, using JAX 0.11.2.
+
+\paragraph{Accuracy (Figure~\ref{fig:precision_sweep}).}
+We draw $A = U \operatorname{diag}(s) V^\top \in \mathbb{R}^{1000 \times 500}$ with $U$ and $V$ from the QR decompositions of standard normal matrices and $s_i = \kappa^{-(i-1)/499}$, round $A$ to float32, and draw a standard normal start vector $v$; five seeds per configuration. The reference is the double-precision adjoint applied to the rounded matrix, so the reported errors measure arithmetic errors rather than the rounding of $A$. In double precision, the three other methods agree with the reference to within $1.3 \cdot 10^{-12}$ (autodiff), $3.2 \cdot 10^{-11}$ (augmented Arnoldi), and $7.9 \cdot 10^{-8}$ (Lanczos on $A^\top A$, at $\kappa(A) = 10^6$). We report $\|g - g_{\mathrm{ref}}\| / \|g_{\mathrm{ref}}\|$ for the gradient $g$ with respect to all entries of $A$. The left panel uses $k = 250$ and $\kappa(A) \in \{10^1, 10^{1.5}, \ldots, 10^6\}$; the right panel uses $\kappa(A) = 10^4$ and $k \in \{25, 50, 100, 150, 200, 250, 300\}$.
+
+\paragraph{Memory and run time (Figure~\ref{fig:partial_depth_cost}).}
+The operator is $A(\theta) v = \theta * v$ (full discrete convolution) with $\theta = e_{16} + 0.1\, \xi$ for standard normal $\xi \in \mathbb{R}^{31}$, and $v$ is standard normal. Memory is the sum of argument, output, and temporary buffer sizes that XLA assigns to the compiled value-and-gradient program. Because this number is available after compilation, we also report it for programs that would not fit into memory. Run times are medians over three runs after a warm-up run; programs above $12$\,GB were not run. Before running the experiments, all four gradient methods agreed to within $2.4 \cdot 10^{-6}$ on a smaller instance ($n = 2000$, $k = 16$).
+
+\paragraph{SuiteSparse matrices (Table~\ref{tab:suitesparse}).}
+We use the matrices \texttt{Kemelmacher}, \texttt{tomographic1}, \texttt{image\_interp}, \texttt{ESOC}, and \texttt{Rucci1} from the SuiteSparse collection~\citep{davis2011university,kolodziej2019suitesparse}, scale their nonzero values to $\max_{ij} |a_{ij}| = 1$, and round them to float32. Products with $A$ and $A^\top$ are segment sums over the nonzeros, and we differentiate with respect to the vector of nonzero values. The start vector is $v = A^\top u$ for a standard normal $u$, treated as a constant; it keeps the Krylov space inside the row space of $A$ and thereby avoids zero Ritz values for rank-deficient matrices. The reference is the double-precision adjoint on the float32 matrix. Memory is measured as for Figure~\ref{fig:partial_depth_cost}. Programs above 8\,GB, half of the machine's memory, were not run; run times are medians over three runs after a warm-up run, or a single run for programs that take longer than five seconds.
 
 \bibliographystyle{plainnat}
 \bibliography{references}

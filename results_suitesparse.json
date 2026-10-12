@@ -1,0 +1,249 @@
+{
+ "config": {
+  "num_matvecs": 100,
+  "dtype": "float32",
+  "device": "cpu: arm",
+  "jax": "0.11.2",
+  "time_memory_limit_bytes": 8000000000.0,
+  "reference": "float64 bidiag adjoint on the float32 matrix"
+ },
+ "matrices": [
+  {
+   "matrix": "Kemelmacher",
+   "group": "Kemelmacher",
+   "rows": 28452,
+   "cols": 9693,
+   "nnz": 100875
+  },
+  {
+   "matrix": "tomographic1",
+   "group": "Clark",
+   "rows": 73159,
+   "cols": 59498,
+   "nnz": 647495
+  },
+  {
+   "matrix": "image_interp",
+   "group": "Yoshiyasu",
+   "rows": 240000,
+   "cols": 120000,
+   "nnz": 711683
+  },
+  {
+   "matrix": "ESOC",
+   "group": "Springer",
+   "rows": 327062,
+   "cols": 37830,
+   "nnz": 6019939
+  },
+  {
+   "matrix": "Rucci1",
+   "group": "Rucci",
+   "rows": 1977885,
+   "cols": 109900,
+   "nnz": 7791168
+  }
+ ],
+ "records": [
+  {
+   "matrix": "Kemelmacher",
+   "method": "forward",
+   "bytes": 31593716,
+   "seconds": 0.2690559170441702,
+   "value_err": 5.192536439345441e-07,
+   "grad_err": null
+  },
+  {
+   "matrix": "Kemelmacher",
+   "method": "bidiag_adjoint",
+   "bytes": 47127672,
+   "seconds": 0.495976083970163,
+   "value_err": 5.192536439345441e-07,
+   "grad_err": 1.3875569316827238e-06
+  },
+  {
+   "matrix": "Kemelmacher",
+   "method": "bidiag_autodiff",
+   "bytes": 5968720816,
+   "seconds": 2.881138875032775,
+   "value_err": 5.192536439345441e-07,
+   "grad_err": 1.3504307411818269e-06
+  },
+  {
+   "matrix": "Kemelmacher",
+   "method": "lanczos_gram",
+   "bytes": 29380592,
+   "seconds": 0.26138037495547906,
+   "value_err": 2.690965670876719e-07,
+   "grad_err": 2.392550801657254e-05
+  },
+  {
+   "matrix": "Kemelmacher",
+   "method": "arnoldi_augmented",
+   "bytes": 215880816,
+   "seconds": 2.9149526670225896,
+   "value_err": 1.1324149191740453e-06,
+   "grad_err": 1.7199681730507192e-06
+  },
+  {
+   "matrix": "tomographic1",
+   "method": "forward",
+   "bytes": 112552024,
+   "seconds": 1.004274583014194,
+   "value_err": 3.40637761133439e-07,
+   "grad_err": null
+  },
+  {
+   "matrix": "tomographic1",
+   "method": "bidiag_adjoint",
+   "bytes": 166307148,
+   "seconds": 2.2180480420356616,
+   "value_err": 3.40637761133439e-07,
+   "grad_err": 7.810048684406958e-06
+  },
+  {
+   "matrix": "tomographic1",
+   "method": "bidiag_autodiff",
+   "bytes": 24156147268,
+   "seconds": null,
+   "value_err": null,
+   "grad_err": null
+  },
+  {
+   "matrix": "tomographic1",
+   "method": "lanczos_gram",
+   "bytes": 178734980,
+   "seconds": 2.0826931659830734,
+   "value_err": 6.017910485766415e-07,
+   "grad_err": 0.0002524881720290409
+  },
+  {
+   "matrix": "tomographic1",
+   "method": "arnoldi_augmented",
+   "bytes": 750854340,
+   "seconds": 16.31148083298467,
+   "value_err": 3.5047669932062e-07,
+   "grad_err": 8.307109643189795e-06
+  },
+  {
+   "matrix": "image_interp",
+   "method": "forward",
+   "bytes": 296575136,
+   "seconds": 2.7951987499836832,
+   "value_err": 4.2692753356379516e-07,
+   "grad_err": null
+  },
+  {
+   "matrix": "image_interp",
+   "method": "bidiag_adjoint",
+   "bytes": 442176708,
+   "seconds": 5.8199809169746,
+   "value_err": 4.2692753356379516e-07,
+   "grad_err": 7.745533508581977e-06
+  },
+  {
+   "matrix": "image_interp",
+   "method": "bidiag_autodiff",
+   "bytes": 59624745788,
+   "seconds": null,
+   "value_err": null,
+   "grad_err": null
+  },
+  {
+   "matrix": "image_interp",
+   "method": "lanczos_gram",
+   "bytes": 351470012,
+   "seconds": 4.392642333987169,
+   "value_err": 1.7681380316419288e-06,
+   "grad_err": 4.5641267201362855e-06
+  },
+  {
+   "matrix": "image_interp",
+   "method": "arnoldi_augmented",
+   "bytes": 2027458364,
+   "seconds": 43.79117066698382,
+   "value_err": 4.669672359133113e-06,
+   "grad_err": 6.461926907445357e-06
+  },
+  {
+   "matrix": "ESOC",
+   "method": "forward",
+   "bytes": 341988472,
+   "seconds": 5.502598000050057,
+   "value_err": 8.886943887428251e-07,
+   "grad_err": null
+  },
+  {
+   "matrix": "ESOC",
+   "method": "bidiag_adjoint",
+   "bytes": 522594716,
+   "seconds": 11.699508999998216,
+   "value_err": 8.886943887428251e-07,
+   "grad_err": 0.0006256991657276578
+  },
+  {
+   "matrix": "ESOC",
+   "method": "bidiag_autodiff",
+   "bytes": 54499745940,
+   "seconds": null,
+   "value_err": null,
+   "grad_err": null
+  },
+  {
+   "matrix": "ESOC",
+   "method": "lanczos_gram",
+   "bytes": 224056980,
+   "seconds": 8.094820750004146,
+   "value_err": 6.81806700426623e-05,
+   "grad_err": 0.014129032829417932
+  },
+  {
+   "matrix": "ESOC",
+   "method": "arnoldi_augmented",
+   "bytes": 2097049748,
+   "seconds": 51.33641120797256,
+   "value_err": 8.886943887428251e-07,
+   "grad_err": 0.001529729969488607
+  },
+  {
+   "matrix": "Rucci1",
+   "method": "forward",
+   "bytes": 1742229060,
+   "seconds": 18.065715042001102,
+   "value_err": 7.196286192169799e-07,
+   "grad_err": null
+  },
+  {
+   "matrix": "Rucci1",
+   "method": "bidiag_adjoint",
+   "bytes": 2604225692,
+   "seconds": 36.50360366696259,
+   "value_err": 7.196286192169799e-07,
+   "grad_err": 0.000540717758717689
+  },
+  {
+   "matrix": "Rucci1",
+   "method": "bidiag_autodiff",
+   "bytes": 277035187028,
+   "seconds": null,
+   "value_err": null,
+   "grad_err": null
+  },
+  {
+   "matrix": "Rucci1",
+   "method": "lanczos_gram",
+   "bytes": 450203220,
+   "seconds": 11.786824999959208,
+   "value_err": 4.785348433856404e-07,
+   "grad_err": 0.000567525155243324
+  },
+  {
+   "matrix": "Rucci1",
+   "method": "arnoldi_augmented",
+   "bytes": 11780383572,
+   "seconds": null,
+   "value_err": null,
+   "grad_err": null
+  }
+ ]
+}
