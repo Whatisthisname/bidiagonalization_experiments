@@ -56,11 +56,11 @@ def save(fig, name):
 
 
 def full_depth_accuracy():
-    """Gradient error at full depth on random normal (float64) and Cauchy (float32) matrices."""
+    """Gradient error at full depth on random normal (float64) and Toeplitz (float32) matrices."""
     results = load("full_depth_accuracy")
     experiments = results["config"]["experiments"]
     fig, axes = plot_style.figure(2, sharey=True)
-    for ax, (name, title) in zip(axes, (("normal", "Random normal, float64"), ("cauchy", "Cauchy, float32"))):
+    for ax, (name, title) in zip(axes, (("normal", "Random normal, float64"), ("toeplitz", "Toeplitz, float32"))):
         for method in experiments[name]["methods"]:
             rows = select(results["records"], experiment=name, method=method)
             plot_style.plot(ax, [r["n"] for r in rows], clip_failures([r["error"] for r in rows]), method)
@@ -79,12 +79,12 @@ def reorthogonalization():
     results = load("full_depth_accuracy")
     fig, (ax_fwd, ax_bwd) = plot_style.figure(2)
     for method in ("forward_noreortho", "forward"):
-        rows = select(results["records"], experiment="cauchy_reconstruction", method=method)
+        rows = select(results["records"], experiment="toeplitz_reconstruction", method=method)
         plot_style.plot(ax_fwd, [r["n"] for r in rows], [r["error"] for r in rows], method)
     for method in ("bidiag_adjoint_noreproj", "bidiag_adjoint"):
         rows = select(results["records"], experiment="reprojection", method=method)
         plot_style.plot(ax_bwd, [r["n"] for r in rows], [r["error"] for r in rows], method)
-    ax_fwd.set_title("Forward pass, Cauchy, float32")
+    ax_fwd.set_title("Forward pass, Toeplitz, float32")
     ax_fwd.set_xlabel(r"Matrix size $n$ (depth $k = n$)")
     ax_fwd.set_ylabel("Reconstruction error")
     ax_bwd.set_title(r"Adjoint, random normal $n \times n/2$, float32")

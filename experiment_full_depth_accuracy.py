@@ -5,8 +5,9 @@ identity. We report the RMS deviation of that Jacobian from the identity
 (gradient error) and the RMS error of the reconstruction itself, for
 
 - normal: random normal n x n matrices, k = n, float64;
-- cauchy: Cauchy matrices C_ij = 1 / (1 + |i - j|), n x n, k = n, float32;
-- cauchy_reconstruction: forward reconstruction error on the Cauchy matrices;
+- toeplitz: symmetric Toeplitz matrices C_ij = 1 / (1 + |i - j|), n x n, k = n,
+  float32;
+- toeplitz_reconstruction: forward reconstruction error on the Toeplitz matrices;
 - reprojection: random normal n x (n/2) matrices, k = n/2, float32, adjoint
   with and without the reprojection step in the backward pass.
 
@@ -37,16 +38,16 @@ EXPERIMENTS = {
         "metric": "jacobian",
         "methods": GRADIENT_METHODS,
     },
-    "cauchy": {
-        "matrix": "cauchy",
+    "toeplitz": {
+        "matrix": "toeplitz",
         "ns": list(range(4, 41, 2)),
         "width": "n",
         "dtype": "float32",
         "metric": "jacobian",
         "methods": GRADIENT_METHODS,
     },
-    "cauchy_reconstruction": {
-        "matrix": "cauchy",
+    "toeplitz_reconstruction": {
+        "matrix": "toeplitz",
         "ns": list(range(4, 41, 2)),
         "width": "n",
         "dtype": "float32",
@@ -80,7 +81,7 @@ _, KEY_V = jax.random.split(jax.random.PRNGKey(1), num=2)
 def make_matrix(name, n):
     if name == "normal":
         return jax.random.normal(KEY_A, shape=(n, n))
-    if name == "cauchy":
+    if name == "toeplitz":
         idx = jnp.arange(n)
         return 1 / (1 + jnp.abs(idx[:, None] - idx[None, :]))
     raise ValueError(name)

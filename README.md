@@ -23,7 +23,7 @@ The shared style lives in `plot_style.py`: tueplots font sizes and line widths, 
 
 | Output | Experiment script | Raw data | Notes |
 |--------|-------------------|----------|-------|
-| `fig_full_depth_accuracy.pdf` | `experiment_full_depth_accuracy.py` | `results/full_depth_accuracy.json` | Gradient error of the full-depth reconstruction on random normal (float64) and Cauchy (float32) matrices (~2 min) |
+| `fig_full_depth_accuracy.pdf` | `experiment_full_depth_accuracy.py` | `results/full_depth_accuracy.json` | Gradient error of the full-depth reconstruction on random normal (float64) and symmetric Toeplitz (float32) matrices (~2 min) |
 | `fig_reorthogonalization.pdf` | `experiment_full_depth_accuracy.py` | `results/full_depth_accuracy.json` | Forward reconstruction with and without reorthonormalization; adjoint with and without reprojection |
 | `fig_full_depth_cost.pdf` | `experiment_full_depth_cost.py` | `results/full_depth_cost.json` | Compile time vs depth, run time vs size at full depth (~10 min). Autodiff is skipped above 8 GB |
 | `fig_precision_sweep.pdf` | `experiment_precision_sweep.py` | `results/precision_sweep.json` | Float32 gradient error of the log-det quadrature vs $\kappa(A)$ and vs depth; four methods, $1000 \times 500$, 5 seeds (~4 min) |
@@ -40,5 +40,3 @@ modal run modal_app.py    # smoke test: partial-depth cost at n = 20,000 and 1,0
 ```
 
 Results go to `logs/modal_smoke_test.json`. On the GPU, XLA runs candidate kernels while it compiles, so `modal_app.py` reads the memory of each program from a compilation without autotuning; programs above 80% of the device memory are not run.
-
-`experiment_benchmark.py` and `benchmarks.ndjson` are an older, broader benchmark (including the augmented Hessenberg formulation). Its data predates the fix of the reorthogonalization projector in `algo_bidiag.py`, and the paper no longer uses it.

@@ -29,8 +29,8 @@
      "bidiag_adjoint"
     ]
    },
-   "cauchy": {
-    "matrix": "cauchy",
+   "toeplitz": {
+    "matrix": "toeplitz",
     "ns": [
      4,
      6,
@@ -62,8 +62,8 @@
      "bidiag_adjoint"
     ]
    },
-   "cauchy_reconstruction": {
-    "matrix": "cauchy",
+   "toeplitz_reconstruction": {
+    "matrix": "toeplitz",
     "ns": [
      4,
      6,
@@ -410,685 +410,685 @@
    "error": 2.3960595284607343e-16
   },
   {
-   "experiment": "cauchy",
+   "experiment": "toeplitz",
    "method": "bidiag_autodiff_noreortho",
    "n": 4,
    "error": 0.00020789496193174273
   },
   {
-   "experiment": "cauchy",
+   "experiment": "toeplitz",
    "method": "bidiag_autodiff_noreortho",
    "n": 6,
    "error": 0.5645641088485718
   },
   {
-   "experiment": "cauchy",
+   "experiment": "toeplitz",
    "method": "bidiag_autodiff_noreortho",
    "n": 8,
    "error": 1.4911603927612305
   },
   {
-   "experiment": "cauchy",
+   "experiment": "toeplitz",
    "method": "bidiag_autodiff_noreortho",
    "n": 10,
    "error": 0.27317991852760315
   },
   {
-   "experiment": "cauchy",
+   "experiment": "toeplitz",
    "method": "bidiag_autodiff_noreortho",
    "n": 12,
    "error": 0.5101622939109802
   },
   {
-   "experiment": "cauchy",
+   "experiment": "toeplitz",
    "method": "bidiag_autodiff_noreortho",
    "n": 14,
    "error": 0.4188592731952667
   },
   {
-   "experiment": "cauchy",
+   "experiment": "toeplitz",
    "method": "bidiag_autodiff_noreortho",
    "n": 16,
    "error": 0.3567936420440674
   },
   {
-   "experiment": "cauchy",
+   "experiment": "toeplitz",
    "method": "bidiag_autodiff_noreortho",
    "n": 18,
    "error": 1.640035629272461
   },
   {
-   "experiment": "cauchy",
+   "experiment": "toeplitz",
    "method": "bidiag_autodiff_noreortho",
    "n": 20,
    "error": 0.5246655941009521
   },
   {
-   "experiment": "cauchy",
+   "experiment": "toeplitz",
    "method": "bidiag_autodiff_noreortho",
    "n": 22,
    "error": 0.28947606682777405
   },
   {
-   "experiment": "cauchy",
+   "experiment": "toeplitz",
    "method": "bidiag_autodiff_noreortho",
    "n": 24,
    "error": 0.3425338864326477
   },
   {
-   "experiment": "cauchy",
+   "experiment": "toeplitz",
    "method": "bidiag_autodiff_noreortho",
    "n": 26,
    "error": 6.192140579223633
   },
   {
-   "experiment": "cauchy",
+   "experiment": "toeplitz",
    "method": "bidiag_autodiff_noreortho",
    "n": 28,
    "error": 0.5396273136138916
   },
   {
-   "experiment": "cauchy",
+   "experiment": "toeplitz",
    "method": "bidiag_autodiff_noreortho",
    "n": 30,
    "error": 3.7469429969787598
   },
   {
-   "experiment": "cauchy",
+   "experiment": "toeplitz",
    "method": "bidiag_autodiff_noreortho",
    "n": 32,
    "error": 2.3193857669830322
   },
   {
-   "experiment": "cauchy",
+   "experiment": "toeplitz",
    "method": "bidiag_autodiff_noreortho",
    "n": 34,
    "error": 0.30227380990982056
   },
   {
-   "experiment": "cauchy",
+   "experiment": "toeplitz",
    "method": "bidiag_autodiff_noreortho",
    "n": 36,
    "error": 0.30691269040107727
   },
   {
-   "experiment": "cauchy",
+   "experiment": "toeplitz",
    "method": "bidiag_autodiff_noreortho",
    "n": 38,
    "error": 1.2628576755523682
   },
   {
-   "experiment": "cauchy",
+   "experiment": "toeplitz",
    "method": "bidiag_autodiff_noreortho",
    "n": 40,
    "error": 0.8641942739486694
   },
   {
-   "experiment": "cauchy",
+   "experiment": "toeplitz",
    "method": "bidiag_autodiff",
    "n": 4,
    "error": NaN
   },
   {
-   "experiment": "cauchy",
+   "experiment": "toeplitz",
    "method": "bidiag_autodiff",
    "n": 6,
    "error": NaN
   },
   {
-   "experiment": "cauchy",
+   "experiment": "toeplitz",
    "method": "bidiag_autodiff",
    "n": 8,
    "error": NaN
   },
   {
-   "experiment": "cauchy",
+   "experiment": "toeplitz",
    "method": "bidiag_autodiff",
    "n": 10,
    "error": NaN
   },
   {
-   "experiment": "cauchy",
+   "experiment": "toeplitz",
    "method": "bidiag_autodiff",
    "n": 12,
    "error": NaN
   },
   {
-   "experiment": "cauchy",
+   "experiment": "toeplitz",
    "method": "bidiag_autodiff",
    "n": 14,
    "error": NaN
   },
   {
-   "experiment": "cauchy",
+   "experiment": "toeplitz",
    "method": "bidiag_autodiff",
    "n": 16,
    "error": NaN
   },
   {
-   "experiment": "cauchy",
+   "experiment": "toeplitz",
    "method": "bidiag_autodiff",
    "n": 18,
    "error": NaN
   },
   {
-   "experiment": "cauchy",
+   "experiment": "toeplitz",
    "method": "bidiag_autodiff",
    "n": 20,
    "error": NaN
   },
   {
-   "experiment": "cauchy",
+   "experiment": "toeplitz",
    "method": "bidiag_autodiff",
    "n": 22,
    "error": NaN
   },
   {
-   "experiment": "cauchy",
+   "experiment": "toeplitz",
    "method": "bidiag_autodiff",
    "n": 24,
    "error": NaN
   },
   {
-   "experiment": "cauchy",
+   "experiment": "toeplitz",
    "method": "bidiag_autodiff",
    "n": 26,
    "error": NaN
   },
   {
-   "experiment": "cauchy",
+   "experiment": "toeplitz",
    "method": "bidiag_autodiff",
    "n": 28,
    "error": NaN
   },
   {
-   "experiment": "cauchy",
+   "experiment": "toeplitz",
    "method": "bidiag_autodiff",
    "n": 30,
    "error": NaN
   },
   {
-   "experiment": "cauchy",
+   "experiment": "toeplitz",
    "method": "bidiag_autodiff",
    "n": 32,
    "error": NaN
   },
   {
-   "experiment": "cauchy",
+   "experiment": "toeplitz",
    "method": "bidiag_autodiff",
    "n": 34,
    "error": NaN
   },
   {
-   "experiment": "cauchy",
+   "experiment": "toeplitz",
    "method": "bidiag_autodiff",
    "n": 36,
    "error": NaN
   },
   {
-   "experiment": "cauchy",
+   "experiment": "toeplitz",
    "method": "bidiag_autodiff",
    "n": 38,
    "error": NaN
   },
   {
-   "experiment": "cauchy",
+   "experiment": "toeplitz",
    "method": "bidiag_autodiff",
    "n": 40,
    "error": NaN
   },
   {
-   "experiment": "cauchy",
+   "experiment": "toeplitz",
    "method": "bidiag_adjoint_noreproj",
    "n": 4,
    "error": 1.6409627789926162e-07
   },
   {
-   "experiment": "cauchy",
+   "experiment": "toeplitz",
    "method": "bidiag_adjoint_noreproj",
    "n": 6,
    "error": 1.1941624507016968e-06
   },
   {
-   "experiment": "cauchy",
+   "experiment": "toeplitz",
    "method": "bidiag_adjoint_noreproj",
    "n": 8,
    "error": 1.321193758485606e-05
   },
   {
-   "experiment": "cauchy",
+   "experiment": "toeplitz",
    "method": "bidiag_adjoint_noreproj",
    "n": 10,
    "error": 0.0004179608076810837
   },
   {
-   "experiment": "cauchy",
+   "experiment": "toeplitz",
    "method": "bidiag_adjoint_noreproj",
    "n": 12,
    "error": 0.00898541696369648
   },
   {
-   "experiment": "cauchy",
+   "experiment": "toeplitz",
    "method": "bidiag_adjoint_noreproj",
    "n": 14,
    "error": 0.0031410909723490477
   },
   {
-   "experiment": "cauchy",
+   "experiment": "toeplitz",
    "method": "bidiag_adjoint_noreproj",
    "n": 16,
    "error": 0.032292865216732025
   },
   {
-   "experiment": "cauchy",
+   "experiment": "toeplitz",
    "method": "bidiag_adjoint_noreproj",
    "n": 18,
    "error": 0.33556872606277466
   },
   {
-   "experiment": "cauchy",
+   "experiment": "toeplitz",
    "method": "bidiag_adjoint_noreproj",
    "n": 20,
    "error": 3.7659361362457275
   },
   {
-   "experiment": "cauchy",
+   "experiment": "toeplitz",
    "method": "bidiag_adjoint_noreproj",
    "n": 22,
    "error": 243.96240234375
   },
   {
-   "experiment": "cauchy",
+   "experiment": "toeplitz",
    "method": "bidiag_adjoint_noreproj",
    "n": 24,
    "error": 2852.39599609375
   },
   {
-   "experiment": "cauchy",
+   "experiment": "toeplitz",
    "method": "bidiag_adjoint_noreproj",
    "n": 26,
    "error": 94467.71875
   },
   {
-   "experiment": "cauchy",
+   "experiment": "toeplitz",
    "method": "bidiag_adjoint_noreproj",
    "n": 28,
    "error": 2916630.0
   },
   {
-   "experiment": "cauchy",
+   "experiment": "toeplitz",
    "method": "bidiag_adjoint_noreproj",
    "n": 30,
    "error": 23205028.0
   },
   {
-   "experiment": "cauchy",
+   "experiment": "toeplitz",
    "method": "bidiag_adjoint_noreproj",
    "n": 32,
    "error": 33159214.0
   },
   {
-   "experiment": "cauchy",
+   "experiment": "toeplitz",
    "method": "bidiag_adjoint_noreproj",
    "n": 34,
    "error": 207448256.0
   },
   {
-   "experiment": "cauchy",
+   "experiment": "toeplitz",
    "method": "bidiag_adjoint_noreproj",
    "n": 36,
    "error": 42753515520.0
   },
   {
-   "experiment": "cauchy",
+   "experiment": "toeplitz",
    "method": "bidiag_adjoint_noreproj",
    "n": 38,
    "error": 184082006016.0
   },
   {
-   "experiment": "cauchy",
+   "experiment": "toeplitz",
    "method": "bidiag_adjoint_noreproj",
    "n": 40,
    "error": 91663384969216.0
   },
   {
-   "experiment": "cauchy",
+   "experiment": "toeplitz",
    "method": "bidiag_adjoint",
    "n": 4,
    "error": 5.333777863825162e-08
   },
   {
-   "experiment": "cauchy",
+   "experiment": "toeplitz",
    "method": "bidiag_adjoint",
    "n": 6,
    "error": 1.0375209313906453e-07
   },
   {
-   "experiment": "cauchy",
+   "experiment": "toeplitz",
    "method": "bidiag_adjoint",
    "n": 8,
    "error": 2.3092233902843873e-07
   },
   {
-   "experiment": "cauchy",
+   "experiment": "toeplitz",
    "method": "bidiag_adjoint",
    "n": 10,
    "error": 8.565547204852919e-07
   },
   {
-   "experiment": "cauchy",
+   "experiment": "toeplitz",
    "method": "bidiag_adjoint",
    "n": 12,
    "error": 4.898733436675684e-07
   },
   {
-   "experiment": "cauchy",
+   "experiment": "toeplitz",
    "method": "bidiag_adjoint",
    "n": 14,
    "error": 1.6555880222313135e-07
   },
   {
-   "experiment": "cauchy",
+   "experiment": "toeplitz",
    "method": "bidiag_adjoint",
    "n": 16,
    "error": 1.7696430631986004e-07
   },
   {
-   "experiment": "cauchy",
+   "experiment": "toeplitz",
    "method": "bidiag_adjoint",
    "n": 18,
    "error": 1.4122039715402934e-07
   },
   {
-   "experiment": "cauchy",
+   "experiment": "toeplitz",
    "method": "bidiag_adjoint",
    "n": 20,
    "error": 1.5930862673485535e-07
   },
   {
-   "experiment": "cauchy",
+   "experiment": "toeplitz",
    "method": "bidiag_adjoint",
    "n": 22,
    "error": 2.8583940547832754e-07
   },
   {
-   "experiment": "cauchy",
+   "experiment": "toeplitz",
    "method": "bidiag_adjoint",
    "n": 24,
    "error": 3.322963948448887e-07
   },
   {
-   "experiment": "cauchy",
+   "experiment": "toeplitz",
    "method": "bidiag_adjoint",
    "n": 26,
    "error": 3.19922719427268e-07
   },
   {
-   "experiment": "cauchy",
+   "experiment": "toeplitz",
    "method": "bidiag_adjoint",
    "n": 28,
    "error": 5.155555982128135e-07
   },
   {
-   "experiment": "cauchy",
+   "experiment": "toeplitz",
    "method": "bidiag_adjoint",
    "n": 30,
    "error": 6.049573926247831e-07
   },
   {
-   "experiment": "cauchy",
+   "experiment": "toeplitz",
    "method": "bidiag_adjoint",
    "n": 32,
    "error": 1.1308945431665052e-05
   },
   {
-   "experiment": "cauchy",
+   "experiment": "toeplitz",
    "method": "bidiag_adjoint",
    "n": 34,
    "error": 3.216896686808468e-07
   },
   {
-   "experiment": "cauchy",
+   "experiment": "toeplitz",
    "method": "bidiag_adjoint",
    "n": 36,
    "error": 2.6863983748626197e-07
   },
   {
-   "experiment": "cauchy",
+   "experiment": "toeplitz",
    "method": "bidiag_adjoint",
    "n": 38,
    "error": 2.3941558424667164e-07
   },
   {
-   "experiment": "cauchy",
+   "experiment": "toeplitz",
    "method": "bidiag_adjoint",
    "n": 40,
    "error": 1.787186931778706e-07
   },
   {
-   "experiment": "cauchy_reconstruction",
+   "experiment": "toeplitz_reconstruction",
    "method": "forward_noreortho",
    "n": 4,
    "error": 6.0874721384607255e-05
   },
   {
-   "experiment": "cauchy_reconstruction",
+   "experiment": "toeplitz_reconstruction",
    "method": "forward_noreortho",
    "n": 6,
    "error": 0.03372501581907272
   },
   {
-   "experiment": "cauchy_reconstruction",
+   "experiment": "toeplitz_reconstruction",
    "method": "forward_noreortho",
    "n": 8,
    "error": 0.39700421690940857
   },
   {
-   "experiment": "cauchy_reconstruction",
+   "experiment": "toeplitz_reconstruction",
    "method": "forward_noreortho",
    "n": 10,
    "error": 0.3503691256046295
   },
   {
-   "experiment": "cauchy_reconstruction",
+   "experiment": "toeplitz_reconstruction",
    "method": "forward_noreortho",
    "n": 12,
    "error": 0.3541224002838135
   },
   {
-   "experiment": "cauchy_reconstruction",
+   "experiment": "toeplitz_reconstruction",
    "method": "forward_noreortho",
    "n": 14,
    "error": 0.594534158706665
   },
   {
-   "experiment": "cauchy_reconstruction",
+   "experiment": "toeplitz_reconstruction",
    "method": "forward_noreortho",
    "n": 16,
    "error": 0.5592588186264038
   },
   {
-   "experiment": "cauchy_reconstruction",
+   "experiment": "toeplitz_reconstruction",
    "method": "forward_noreortho",
    "n": 18,
    "error": 0.6382308602333069
   },
   {
-   "experiment": "cauchy_reconstruction",
+   "experiment": "toeplitz_reconstruction",
    "method": "forward_noreortho",
    "n": 20,
    "error": 0.716020941734314
   },
   {
-   "experiment": "cauchy_reconstruction",
+   "experiment": "toeplitz_reconstruction",
    "method": "forward_noreortho",
    "n": 22,
    "error": 0.7075955867767334
   },
   {
-   "experiment": "cauchy_reconstruction",
+   "experiment": "toeplitz_reconstruction",
    "method": "forward_noreortho",
    "n": 24,
    "error": 0.6744718551635742
   },
   {
-   "experiment": "cauchy_reconstruction",
+   "experiment": "toeplitz_reconstruction",
    "method": "forward_noreortho",
    "n": 26,
    "error": 0.6515935063362122
   },
   {
-   "experiment": "cauchy_reconstruction",
+   "experiment": "toeplitz_reconstruction",
    "method": "forward_noreortho",
    "n": 28,
    "error": 0.7985644936561584
   },
   {
-   "experiment": "cauchy_reconstruction",
+   "experiment": "toeplitz_reconstruction",
    "method": "forward_noreortho",
    "n": 30,
    "error": 0.7715441584587097
   },
   {
-   "experiment": "cauchy_reconstruction",
+   "experiment": "toeplitz_reconstruction",
    "method": "forward_noreortho",
    "n": 32,
    "error": 0.8804584741592407
   },
   {
-   "experiment": "cauchy_reconstruction",
+   "experiment": "toeplitz_reconstruction",
    "method": "forward_noreortho",
    "n": 34,
    "error": 0.8888831734657288
   },
   {
-   "experiment": "cauchy_reconstruction",
+   "experiment": "toeplitz_reconstruction",
    "method": "forward_noreortho",
    "n": 36,
    "error": 0.8635095357894897
   },
   {
-   "experiment": "cauchy_reconstruction",
+   "experiment": "toeplitz_reconstruction",
    "method": "forward_noreortho",
    "n": 38,
    "error": 0.8341702222824097
   },
   {
-   "experiment": "cauchy_reconstruction",
+   "experiment": "toeplitz_reconstruction",
    "method": "forward_noreortho",
    "n": 40,
    "error": 0.9506803750991821
   },
   {
-   "experiment": "cauchy_reconstruction",
+   "experiment": "toeplitz_reconstruction",
    "method": "forward",
    "n": 4,
    "error": 6.200118463084436e-08
   },
   {
-   "experiment": "cauchy_reconstruction",
+   "experiment": "toeplitz_reconstruction",
    "method": "forward",
    "n": 6,
    "error": 6.514229511367375e-08
   },
   {
-   "experiment": "cauchy_reconstruction",
+   "experiment": "toeplitz_reconstruction",
    "method": "forward",
    "n": 8,
    "error": 7.713690308719379e-08
   },
   {
-   "experiment": "cauchy_reconstruction",
+   "experiment": "toeplitz_reconstruction",
    "method": "forward",
    "n": 10,
    "error": 6.959815124218949e-08
   },
   {
-   "experiment": "cauchy_reconstruction",
+   "experiment": "toeplitz_reconstruction",
    "method": "forward",
    "n": 12,
    "error": 4.838497247305895e-08
   },
   {
-   "experiment": "cauchy_reconstruction",
+   "experiment": "toeplitz_reconstruction",
    "method": "forward",
    "n": 14,
    "error": 6.344833280991224e-08
   },
   {
-   "experiment": "cauchy_reconstruction",
+   "experiment": "toeplitz_reconstruction",
    "method": "forward",
    "n": 16,
    "error": 5.55992549777784e-08
   },
   {
-   "experiment": "cauchy_reconstruction",
+   "experiment": "toeplitz_reconstruction",
    "method": "forward",
    "n": 18,
    "error": 5.6817746951765e-08
   },
   {
-   "experiment": "cauchy_reconstruction",
+   "experiment": "toeplitz_reconstruction",
    "method": "forward",
    "n": 20,
    "error": 5.676027114986937e-08
   },
   {
-   "experiment": "cauchy_reconstruction",
+   "experiment": "toeplitz_reconstruction",
    "method": "forward",
    "n": 22,
    "error": 5.530944235943025e-08
   },
   {
-   "experiment": "cauchy_reconstruction",
+   "experiment": "toeplitz_reconstruction",
    "method": "forward",
    "n": 24,
    "error": 4.9000757229578085e-08
   },
   {
-   "experiment": "cauchy_reconstruction",
+   "experiment": "toeplitz_reconstruction",
    "method": "forward",
    "n": 26,
    "error": 5.128497448936287e-08
   },
   {
-   "experiment": "cauchy_reconstruction",
+   "experiment": "toeplitz_reconstruction",
    "method": "forward",
    "n": 28,
    "error": 6.0044627048228e-08
   },
   {
-   "experiment": "cauchy_reconstruction",
+   "experiment": "toeplitz_reconstruction",
    "method": "forward",
    "n": 30,
    "error": 5.2527916238886974e-08
   },
   {
-   "experiment": "cauchy_reconstruction",
+   "experiment": "toeplitz_reconstruction",
    "method": "forward",
    "n": 32,
    "error": 5.0888477431954016e-08
   },
   {
-   "experiment": "cauchy_reconstruction",
+   "experiment": "toeplitz_reconstruction",
    "method": "forward",
    "n": 34,
    "error": 4.7134474101540036e-08
   },
   {
-   "experiment": "cauchy_reconstruction",
+   "experiment": "toeplitz_reconstruction",
    "method": "forward",
    "n": 36,
    "error": 4.892393690170138e-08
   },
   {
-   "experiment": "cauchy_reconstruction",
+   "experiment": "toeplitz_reconstruction",
    "method": "forward",
    "n": 38,
    "error": 5.0279258090313306e-08
   },
   {
-   "experiment": "cauchy_reconstruction",
+   "experiment": "toeplitz_reconstruction",
    "method": "forward",
    "n": 40,
    "error": 5.0893753211767034e-08

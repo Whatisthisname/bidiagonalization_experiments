@@ -145,7 +145,7 @@ def main():
     C = 1 / (1 + jnp.abs(idx[:, None] - idx[None, :]))
     eigs = jnp.linalg.eigvalsh(C)
     print(
-        f"  'Cauchy' C_ij=1/(1+|i-j|), n=40: cond = {eigs[-1]/eigs[0]:.4g}, min eig = {eigs[0]:.4g} (PD: {bool(eigs[0] > 0)})"
+        f"  Toeplitz C_ij=1/(1+|i-j|), n=40: cond = {eigs[-1]/eigs[0]:.4g}, min eig = {eigs[0]:.4g} (PD: {bool(eigs[0] > 0)})"
     )
     for n in [8, 12, 20, 40]:
         a = jnp.arange(n)
