@@ -31,4 +31,14 @@ The shared style lives in `plot_style.py`: tueplots font sizes and line widths, 
 | `table_suitesparse.tex` | `experiment_suitesparse.py` | `results/suitesparse.json` | Memory, time, and float32 gradient error at $k = 100$ on five SuiteSparse matrices; downloads them into `data/suitesparse` (~470 MB), ~15 min. Programs above 8 GB are not run; `--fresh` recomputes all matrices |
 | `table_lanczos_cost.tex` | `experiment_lanczos_cost.py` | `results/lanczos_cost.json` | Forward-pass time of bidiagonalization and Lanczos on $A^\top A$ with and without reorthogonalization (~3 min; needs the SuiteSparse matrices) |
 
+## Running on a GPU with Modal
+
+`modal_app.py` runs experiments on a [Modal](https://modal.com) GPU (default: L4). The image installs the CUDA build of the pinned JAX and matfree versions and ships the local modules. It needs a Modal token (`modal setup`).
+
+```bash
+modal run modal_app.py    # smoke test: partial-depth cost at n = 20,000 and 1,000,000, k = 64
+```
+
+Results go to `logs/modal_smoke_test.json`. On the GPU, XLA runs candidate kernels while it compiles, so `modal_app.py` reads the memory of each program from a compilation without autotuning; programs above 80% of the device memory are not run.
+
 `experiment_benchmark.py` and `benchmarks.ndjson` are an older, broader benchmark (including the augmented Hessenberg formulation). Its data predates the fix of the reorthogonalization projector in `algo_bidiag.py`, and the paper no longer uses it.
