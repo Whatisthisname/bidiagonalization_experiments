@@ -1,0 +1,508 @@
+<!DOCTYPE html>
+<!-- Authorship: agent-written (2026-10-18).
+     review.html: document.pdf with comment threads (review-comments.js). Open it from Becemder at
+     http://127.0.0.1:8788/files/bidiagonalization-experiments/latex/review.html; from disk the browser cannot load the
+     PDF. PDF.js draws the pages, with a text layer that the comments highlight in. The page reloads when the PDF is
+     rebuilt, marks the text that changed since the tab was opened, and shows the agent's replies from
+     review-replies.txt as they come. See AGENTS.md for what agents do with comments.
+     Becemder adds its annotate.js to every page whose source does not name annotate.js; this comment names it, so that
+     Becemder leaves it out here, where review-comments.js takes its place. -->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Paper: Numerically stable gradients of Golub-Kahan Bidiagonalization</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.19.0/dist/katex.min.css">
+<style>
+:root{--sans:-apple-system,BlinkMacSystemFont,"Segoe UI",Helvetica,Arial,sans-serif;--serif:Georgia,serif}
+html{background:#e8e6e1}
+body{margin:0;font-family:var(--sans);color:rgba(0,0,0,.85)}
+#paper{--scale-round-x:1px;--scale-round-y:1px;width:var(--page-w,900px);
+  margin:24px 0 80px max(24px,calc((100vw - var(--page-w,900px) - 330px) / 2))}
+.page{position:relative;margin-bottom:18px;background:#fff;box-shadow:0 1px 4px rgba(0,0,0,.2)}
+.page>canvas{position:absolute;inset:0;width:100%;height:100%}
+.page>a.link{position:absolute;z-index:2;border-radius:2px}
+.page>a.link:hover{background:rgba(0,90,200,.1)}
+
+/* The text layer rules of PDF.js 6.4 (web/pdf_viewer.css), without nesting. */
+.textLayer{position:absolute;inset:0;overflow:clip;opacity:1;line-height:1;text-align:initial;letter-spacing:normal;
+  word-spacing:normal;-webkit-text-size-adjust:none;text-size-adjust:none;forced-color-adjust:none;transform-origin:0 0;
+  caret-color:CanvasText;z-index:0;--min-font-size:1;--text-scale-factor:calc(var(--total-scale-factor) * var(--min-font-size));
+  --min-font-size-inv:calc(1 / var(--min-font-size))}
+.textLayer :is(span,br){color:transparent;position:absolute;white-space:pre;cursor:text;transform-origin:0% 0%;
+  -webkit-user-select:text;user-select:text}
+.textLayer>:not(.markedContent){z-index:1;--font-height:0;font-size:calc(var(--text-scale-factor) * var(--font-height));
+  --scale-x:1;--rotate:0deg;transform:rotate(var(--rotate)) scaleX(var(--scale-x)) scale(var(--min-font-size-inv))}
+.textLayer ::selection{background:rgba(0,0,255,.25);background:color-mix(in srgb,AccentColor,transparent 50%);color:transparent}
+.textLayer br::selection,.textLayer .eol::selection{background:transparent}
+.textLayer .endOfContent{display:block;position:absolute;inset:100% 0 0;z-index:0;cursor:default;-webkit-user-select:none;user-select:none}
+.textLayer.selecting .endOfContent{top:0}
+
+.textLayer .pdf-section{position:absolute;width:1px;height:1px;margin:0;padding:0;overflow:hidden;clip-path:inset(50%);
+  white-space:nowrap;-webkit-user-select:none;user-select:none}
+.textLayer span.pdf-changed{background:rgba(95,155,101,.16)}
+.textLayer span.pdf-flash{animation:pdf-flash 1.4s ease-out}
+@keyframes pdf-flash{0%{background:rgba(255,196,0,.6)}}
+
+#bar{position:fixed;left:22px;bottom:22px;z-index:1000;max-width:min(520px,calc(100vw - 44px));display:flex;flex-wrap:wrap;
+  align-items:center;gap:6px 10px;font-size:14px;line-height:1.4;background:#fffdf9;border:1px solid rgba(95,155,101,.55);
+  border-radius:8px;box-shadow:0 2px 12px rgba(0,0,0,.12);padding:7px 12px}
+#bar[hidden]{display:none}
+#bar.error{border-color:rgba(181,72,59,.6)}
+#bar button{font:inherit;font-size:13px;border:1px solid rgba(0,0,0,.18);background:#fff;border-radius:4px;padding:2px 9px;cursor:pointer}
+#bar button:hover{background:#f3f3f3}
+#bar button.x{border:none;background:none;font-size:17px;line-height:1;padding:0 2px;color:rgba(0,0,0,.4)}
+
+/* live.js judges this page by review.html, which a rebuild of the PDF leaves unchanged, so its notice that a reply
+   finished would say that nothing changed; and its notice that the page changed waits for typing to stop rather than
+   for the comment to be saved. #bar reports rebuilds and new versions of this page instead. */
+.becemder-live-done,.becemder-live-changed{display:none!important}
+@media print{#bar{display:none}.textLayer span.pdf-changed{background:none}}
+</style>
+</head>
+<body>
+<article id="paper"></article>
+<div id="bar" role="status">Loading the PDF…</div>
+<script type="module">
+import * as pdfjs from 'https://cdn.jsdelivr.net/npm/pdfjs-dist@6.4.299/build/pdf.min.mjs';
+import { startComments } from './review-comments.js';
+
+const CDN = 'https://cdn.jsdelivr.net/npm/pdfjs-dist@6.4.299/';
+const PDF = 'document.pdf';
+const REPLIES = 'review-replies.txt';
+const CTX = window.BECEMDER || {};
+const LIVE = CTX.live;  // set when Becemder serves the page: where to ask for the version of a file
+const DIR = (CTX.path || '').replace(/[^/]*$/, '');
+const KEY = 'paper-review:' + location.pathname;
+const MARGIN = 330;     // room right of the pages for the comment cards, in px
+
+pdfjs.GlobalWorkerOptions.workerSrc = CDN + 'build/pdf.worker.min.mjs';
+
+const paper = document.getElementById('paper');
+const bar = document.getElementById('bar');
+const pages = [];
+let doc = null;
+let scale = 0;
+
+function el(tag, cls, text) {
+  const e = document.createElement(tag);
+  if (cls) e.className = cls;
+  if (text != null) e.textContent = text;
+  return e;
+}
+
+/* ---------- the bar at the bottom left ---------- */
+
+let barTimer = 0;
+function say(text, { actions = [], error = false, hideAfter = 0 } = {}) {
+  clearTimeout(barTimer);
+  bar.hidden = false;
+  bar.classList.toggle('error', error);
+  bar.replaceChildren(document.createTextNode(text));
+  for (const [label, fn] of actions) {
+    const b = el('button', '', label);
+    b.type = 'button';
+    b.addEventListener('click', fn);
+    bar.append(b);
+  }
+  const x = el('button', 'x', '\u00d7');
+  x.type = 'button';
+  x.title = 'Close';
+  x.addEventListener('click', () => { bar.hidden = true; });
+  bar.append(x);
+  if (hideAfter) barTimer = setTimeout(() => { bar.hidden = true; }, hideAfter);
+}
+
+/* ---------- pages ---------- */
+
+function fitScale() {
+  const w = Math.max(...pages.map(p => p.vp.width));
+  const css = Math.max(560, Math.min(900, window.innerWidth - 48 - MARGIN));
+  return css / w;
+}
+
+function applyScale() {
+  const s = fitScale();
+  if (Math.abs(s - scale) < 0.005) return false;
+  scale = s;
+  paper.style.setProperty('--total-scale-factor', scale);
+  paper.style.setProperty('--page-w', Math.floor(Math.max(...pages.map(p => p.vp.width)) * scale) + 'px');
+  return true;
+}
+
+function addPage(page) {
+  const vp = page.getViewport({ scale: 1 });
+  const { pageWidth, pageHeight } = vp.rawDims;
+  const div = el('div', 'page');
+  div.dataset.page = page.pageNumber;
+  div.style.width = `round(down, var(--total-scale-factor) * ${pageWidth}px, var(--scale-round-x))`;
+  div.style.height = `round(down, var(--total-scale-factor) * ${pageHeight}px, var(--scale-round-y))`;
+  const text = el('div', 'textLayer');
+  div.append(text);
+  paper.append(div);
+  const p = { page, vp, div, text, canvas: null, task: null, drawn: 0 };
+  pages.push(p);
+  return p;
+}
+
+async function renderText(p) {
+  const content = await p.page.getTextContent();
+  const layer = new pdfjs.TextLayer({ textContentSource: content, container: p.text, viewport: p.page.getViewport({ scale }) });
+  await layer.render();
+  // A space at each line end, so that quoted text does not glue the last word of a line to the first of the next.
+  for (const br of p.text.querySelectorAll(':scope > br')) {
+    const prev = br.previousElementSibling;
+    if (prev && prev.tagName === 'SPAN' && !/[\s\-\u2010]$/.test(prev.textContent)) br.after(el('span', 'eol', ' '));
+  }
+  p.text.append(el('div', 'endOfContent'));
+}
+
+function textSpans(p) {
+  return [...p.text.querySelectorAll(':scope > span:not(.eol)')];
+}
+
+function pctTop(p, y) {
+  return 100 * p.vp.convertToViewportPoint(0, y)[1] / p.vp.height;
+}
+
+/* ---------- canvases, drawn only near the screen ---------- */
+
+function draw(p) {
+  const dpr = Math.min(window.devicePixelRatio || 1, 2);
+  const key = scale * dpr;
+  if (p.drawn === key) return;
+  p.task?.cancel();
+  const vp = p.page.getViewport({ scale: key });
+  const canvas = el('canvas');
+  canvas.width = Math.floor(vp.width);
+  canvas.height = Math.floor(vp.height);
+  p.drawn = key;
+  const task = p.task = p.page.render({ canvasContext: canvas.getContext('2d'), viewport: vp });
+  task.promise.then(() => {
+    if (p.task !== task) return;
+    p.task = null;
+    p.canvas?.remove();
+    p.canvas = canvas;
+    p.div.prepend(canvas);
+  }, err => {
+    if (p.task === task) { p.task = null; p.drawn = 0; }
+    if (!(err instanceof pdfjs.RenderingCancelledException)) console.error(err);
+  });
+}
+
+function clear(p) {
+  p.task?.cancel();
+  p.task = null;
+  p.drawn = 0;
+  if (p.canvas) {
+    p.canvas.width = p.canvas.height = 0;
+    p.canvas.remove();
+    p.canvas = null;
+  }
+}
+
+const near = new Set();
+function watchCanvases() {
+  const byDiv = new Map(pages.map(p => [p.div, p]));
+  const io = new IntersectionObserver(entries => {
+    for (const e of entries) {
+      const p = byDiv.get(e.target);
+      if (e.isIntersecting) { near.add(p); draw(p); } else { near.delete(p); clear(p); }
+    }
+  }, { rootMargin: '150% 0px' });
+  pages.forEach(p => io.observe(p.div));
+  let t = 0;
+  window.addEventListener('resize', () => {
+    clearTimeout(t);
+    t = setTimeout(() => { applyScale(); near.forEach(draw); }, 150);
+  });
+}
+
+/* ---------- destinations: outline headings and links ---------- */
+
+async function resolve(dest) {
+  try {
+    const explicit = typeof dest === 'string' ? await doc.getDestination(dest) : dest;
+    if (!Array.isArray(explicit)) return null;
+    const [ref, mode, ...args] = explicit;
+    const index = Number.isInteger(ref) ? ref : await doc.getPageIndex(ref);
+    const name = mode && mode.name;
+    const top = name === 'XYZ' ? args[1] : name === 'FitH' || name === 'FitBH' ? args[0] : name === 'FitR' ? args[3] : null;
+    return pages[index] ? { p: pages[index], top: typeof top === 'number' ? top : null } : null;
+  } catch (e) {
+    return null;
+  }
+}
+
+// Hidden headings in the text layers, from the PDF's bookmarks, so that each comment is labelled with its section and
+// page ("Section:" in the message).
+async function addSections() {
+  const marks = [];
+  async function walk(items, trail) {
+    for (const it of items || []) {
+      const path = [...trail, it.title.trim()];
+      const where = await resolve(it.dest);
+      if (where) marks.push({ title: path.join(' \u203a '), ...where });
+      await walk(it.items, path);
+    }
+  }
+  await walk(await doc.getOutline(), []);
+  const pct = m => m.top == null ? 0 : pctTop(m.p, m.top);
+  marks.sort((a, b) => pages.indexOf(a.p) - pages.indexOf(b.p) || pct(a) - pct(b));
+  let current = null;
+  for (const p of pages) {
+    const n = p.page.pageNumber;
+    p.text.prepend(el('h2', 'pdf-section', `Page ${n}` + (current ? ` (in ${current.title})` : '')));
+    const spans = textSpans(p);
+    for (const m of marks.filter(m => m.p === p)) {
+      const at = pct(m) - 0.5;
+      const before = spans.find(s => parseFloat(s.style.top) >= at);
+      const h = el('h2', 'pdf-section', `${m.title} (page ${n})`);
+      before ? before.before(h) : p.text.querySelector('.endOfContent').before(h);
+      current = m;
+    }
+  }
+}
+
+async function goTo(dest) {
+  const where = await resolve(dest);
+  if (!where) return;
+  const { p, top } = where;
+  const y = p.div.getBoundingClientRect().top + window.scrollY + (top == null ? 0 : pctTop(p, top) / 100 * p.div.offsetHeight);
+  history.replaceState({ y: window.scrollY }, '');
+  history.pushState({ y: y - 16 }, '');
+  window.scrollTo({ top: y - 16 });
+}
+
+window.addEventListener('popstate', e => {
+  if (e.state && typeof e.state.y === 'number') window.scrollTo({ top: e.state.y });
+});
+
+async function addLinks(p) {
+  for (const a of await p.page.getAnnotations()) {
+    if (a.subtype !== 'Link' || (!a.dest && !a.url)) continue;
+    const [x1, y1] = p.vp.convertToViewportPoint(a.rect[0], a.rect[1]);
+    const [x2, y2] = p.vp.convertToViewportPoint(a.rect[2], a.rect[3]);
+    const link = el('a', 'link');
+    Object.assign(link.style, {
+      left: 100 * Math.min(x1, x2) / p.vp.width + '%', top: 100 * Math.min(y1, y2) / p.vp.height + '%',
+      width: 100 * Math.abs(x2 - x1) / p.vp.width + '%', height: 100 * Math.abs(y2 - y1) / p.vp.height + '%'
+    });
+    if (a.url) {
+      link.href = a.url;
+      link.target = '_blank';
+      link.rel = 'noopener';
+    } else {
+      link.href = '#';
+      link.addEventListener('click', e => { e.preventDefault(); goTo(a.dest); });
+    }
+    p.div.append(link);
+  }
+}
+
+/* ---------- text that changed since the tab was opened ---------- */
+
+function hash(s) {
+  let h = 2166136261;
+  for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 16777619); }
+  return (h >>> 0).toString(36);
+}
+
+function allSpans() {
+  return pages.flatMap(textSpans).filter(s => s.textContent.trim().length > 1);
+}
+
+function stored(k) {
+  try { return JSON.parse(sessionStorage.getItem(k) || 'null'); } catch (e) { return null; }
+}
+
+function store(k, v) {
+  try { sessionStorage.setItem(k, JSON.stringify(v)); } catch (e) { /* storage blocked */ }
+}
+
+let passages = [];
+let nextPassage = 0;
+
+function markChanges(rebuilt) {
+  const spans = allSpans();
+  const now = spans.map(s => hash(s.textContent));
+  const base = stored(KEY + ':base');
+  if (!base) { store(KEY + ':base', now); return; }
+  // A span is unchanged when it still follows or precedes the span it did before. Matching single spans would let a
+  // new copy of a formula, such as AR = LB in the introduction, take the place of the old one further down.
+  const pairs = new Set(base.slice(1).map((h, i) => base[i] + ' ' + h));
+  passages = [];
+  let gap = Infinity;
+  spans.forEach((s, i) => {
+    if (pairs.has(now[i - 1] + ' ' + now[i]) || pairs.has(now[i] + ' ' + now[i + 1])) { gap++; return; }
+    s.classList.add('pdf-changed');
+    if (gap > 2) passages.push(s);
+    gap = 0;
+  });
+  if (passages.length) {
+    say(passages.length === 1 ? 'One passage has changed since you opened this tab. It is marked in green.'
+      : `${passages.length} passages have changed since you opened this tab. They are marked in green.`,
+      { actions: [['Next change', showNext], ['Clear marks', clearMarks]] });
+  } else if (rebuilt) {
+    say('The PDF was rebuilt. Nothing in its text changed.', { hideAfter: 6000 });
+  }
+}
+
+function showNext() {
+  if (!passages.length) return;
+  const s = passages[nextPassage++ % passages.length];
+  s.scrollIntoView({ block: 'center', behavior: 'smooth' });
+  s.classList.remove('pdf-flash');
+  void s.offsetWidth;
+  s.classList.add('pdf-flash');
+}
+
+function clearMarks() {
+  document.querySelectorAll('.pdf-changed').forEach(s => s.classList.remove('pdf-changed'));
+  store(KEY + ':base', allSpans().map(s => hash(s.textContent)));
+  passages = [];
+  bar.hidden = true;
+}
+
+/* ---------- reloading when the PDF or this page changes ---------- */
+
+const CODE = ['review.html', 'review-comments.js'];
+let shown = null;        // the version of the PDF on screen
+let seen = null;         // a new version seen once outside a chat; the page reloads when it is still there next time
+let wasRunning = false;
+let codeShown = null;    // the versions of this page's own files, as loaded
+let codeSeen = null;
+let pending = null;      // why the page should reload: 'pdf' or 'code'
+let repliesShown = null; // the version of review-replies.txt that the comments show
+let comments = null;
+let mouseDown = false;
+
+// The version of a file of the workspace and the chat that last changed it; null when there is no such file.
+async function fileState(name) {
+  const q = '?ws=' + encodeURIComponent(LIVE.ws || '') + '&path=' + encodeURIComponent(DIR + name);
+  const r = await fetch(LIVE.url + q, { cache: 'no-store' });
+  return r.ok ? r.json() : null;
+}
+
+// What a reload now would interrupt, as the rest of the sentence "This page reloads when you …"; empty when nothing.
+// Comments and the message box keep their text across a reload, but not an open editor, the caret or a selection.
+function busy() {
+  const ra = window.ReportAnnotations;
+  if (ra && ra.editing()) return 'save or cancel your comment.';
+  const el = document.activeElement;
+  if (el && /^(TEXTAREA|INPUT)$/.test(el.tagName)) return 'leave the message box.';
+  const sel = window.getSelection();
+  if (mouseDown || (sel && !sel.isCollapsed && String(sel).trim())) return 'finish your selection.';
+  return '';
+}
+
+function reload() {
+  store(KEY + ':reload', { at: Date.now(), why: pending });
+  location.reload();
+}
+
+function reloadWhenFree() {
+  if (!pending) return;
+  const why = busy();
+  if (!why) { reload(); return; }
+  say((pending === 'pdf' ? 'The PDF has been rebuilt.' : 'This page has a new version.') + ' It reloads when you ' + why,
+    { actions: [['Reload now', reload]] });
+}
+
+// While the chat that rebuilds the PDF runs, the PDF changes on every LaTeX pass; the page waits for the reply to end.
+function check(st) {
+  const running = !!(st.chat && st.chat.running);
+  if (st.version === shown) { seen = null; wasRunning = running; return; }
+  if (running) { wasRunning = true; seen = null; return; }
+  if (!wasRunning && seen !== st.version) { seen = st.version; return; }
+  pending = 'pdf';
+}
+
+// This page's own files reload it once they have been still for one poll, so that it never loads half an edit.
+function checkCode(states) {
+  const v = codeVersion(states);
+  if (v === codeShown) { codeSeen = null; return; }
+  if (codeSeen !== v) { codeSeen = v; return; }
+  pending = pending || 'code';
+}
+
+function codeVersion(states) {
+  return states.map(s => s ? s.version : '').join(' ');
+}
+
+async function poll() {
+  try {
+    const [st, rs, ...code] = await Promise.all([PDF, REPLIES, ...CODE].map(fileState));
+    const replies = rs ? rs.version : null;
+    if (replies !== repliesShown && comments) {
+      repliesShown = replies;
+      comments.loadReplies();
+    }
+    if (st) check(st);
+    checkCode(code);
+    reloadWhenFree();
+  } catch (e) { /* Becemder is down; ask again later */ }
+  setTimeout(poll, document.hidden ? 10000 : 2000);
+}
+
+document.addEventListener('mousedown', e => {
+  mouseDown = true;
+  const layer = e.target.closest && e.target.closest('.textLayer');
+  if (layer) layer.classList.add('selecting');
+}, true);
+document.addEventListener('mouseup', () => {
+  mouseDown = false;
+  document.querySelectorAll('.textLayer.selecting').forEach(l => l.classList.remove('selecting'));
+  setTimeout(reloadWhenFree, 300);
+}, true);
+window.addEventListener('blur', () => { mouseDown = false; });
+window.addEventListener('pagehide', () => store(KEY + ':y', window.scrollY));
+
+/* ---------- start ---------- */
+
+async function main() {
+  if (location.protocol === 'file:') {
+    say('Open this page from Becemder (http://127.0.0.1:8788/files/bidiagonalization-experiments/latex/review.html). ' +
+      'From disk the browser cannot load the PDF.', { error: true });
+    return;
+  }
+  const again = stored(KEY + ':reload');
+  sessionStorage.removeItem(KEY + ':reload');
+  const rebuilt = !!(again && again.why === 'pdf' && Date.now() - again.at < 60000);
+  let newCode = false;
+  if (LIVE) {
+    const [st, rs, ...code] = await Promise.all([PDF, REPLIES, ...CODE].map(f => fileState(f).catch(() => null)));
+    shown = st ? st.version : null;
+    repliesShown = rs ? rs.version : null;
+    codeShown = codeVersion(code);
+    const before = stored(KEY + ':code');
+    newCode = !!before && before !== codeShown;
+    store(KEY + ':code', codeShown);
+  }
+  doc = await pdfjs.getDocument({
+    url: PDF, cMapUrl: CDN + 'cmaps/', standardFontDataUrl: CDN + 'standard_fonts/', wasmUrl: CDN + 'wasm/'
+  }).promise;
+  for (let i = 1; i <= doc.numPages; i++) addPage(await doc.getPage(i));
+  applyScale();
+  history.scrollRestoration = 'manual';
+  const y = stored(KEY + ':y');
+  if (typeof y === 'number') window.scrollTo({ top: y });
+  await Promise.all(pages.map(renderText));
+  await addSections();
+  await Promise.all(pages.map(addLinks));
+  bar.hidden = true;
+  if (newCode) say('This page reloaded with a new version of itself. Your comments are kept.', { hideAfter: 8000 });
+  markChanges(rebuilt);
+  watchCanvases();
+  comments = await startComments({ root: paper, replies: REPLIES, onIdle: reloadWhenFree });
+  if (LIVE) setTimeout(poll, 2000);
+}
+
+main().catch(err => {
+  console.error(err);
+  say('Could not load the PDF: ' + (err && err.message || err) + '. Trying again in a few seconds.', { error: true });
+  if (LIVE) setTimeout(() => location.reload(), 4000);
+});
+</script>
+</body>
+</html>
