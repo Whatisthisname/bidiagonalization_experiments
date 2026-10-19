@@ -3,31 +3,31 @@
 Matrix & Method & Memory (GB) & Time (s) & Gradient error \\
 \midrule
 \texttt{Kemelmacher} & Forward pass & 0.03 & 0.27 &  \\
-$28{,}452 \times 9{,}693$ & \textbf{Adjoint (ours)} & 0.05 & 0.50 & $1.4\cdot 10^{-6}$ \\
+$28{,}452 \times 9{,}693$ & \textbf{Adjoint (reproj.)} & 0.05 & 0.50 & $1.4\cdot 10^{-6}$ \\
 0.10M nonzeros & Autodiff & 5.97 & 2.88 & $1.4\cdot 10^{-6}$ \\
  & Lanczos adjoint on $A^\top A$ & 0.03 & 0.26 & $2.4\cdot 10^{-5}$ \\
  & Arnoldi adjoint, augmented & 0.22 & 2.91 & $1.7\cdot 10^{-6}$ \\
 \midrule
 \texttt{tomographic1} & Forward pass & 0.11 & 1.00 &  \\
-$73{,}159 \times 59{,}498$ & \textbf{Adjoint (ours)} & 0.17 & 2.22 & $7.8\cdot 10^{-6}$ \\
+$73{,}159 \times 59{,}498$ & \textbf{Adjoint (reproj.)} & 0.17 & 2.22 & $7.8\cdot 10^{-6}$ \\
 0.65M nonzeros & Autodiff & 24.2 & --- & --- \\
  & Lanczos adjoint on $A^\top A$ & 0.18 & 2.08 & $2.5\cdot 10^{-4}$ \\
  & Arnoldi adjoint, augmented & 0.75 & 16.31 & $8.3\cdot 10^{-6}$ \\
 \midrule
 \texttt{image\_interp} & Forward pass & 0.30 & 2.80 &  \\
-$240{,}000 \times 120{,}000$ & \textbf{Adjoint (ours)} & 0.44 & 5.82 & $7.7\cdot 10^{-6}$ \\
+$240{,}000 \times 120{,}000$ & \textbf{Adjoint (reproj.)} & 0.44 & 5.82 & $7.7\cdot 10^{-6}$ \\
 0.71M nonzeros & Autodiff & 59.6 & --- & --- \\
  & Lanczos adjoint on $A^\top A$ & 0.35 & 4.39 & $4.6\cdot 10^{-6}$ \\
  & Arnoldi adjoint, augmented & 2.03 & 43.79 & $6.5\cdot 10^{-6}$ \\
 \midrule
 \texttt{ESOC} & Forward pass & 0.34 & 5.50 &  \\
-$327{,}062 \times 37{,}830$ & \textbf{Adjoint (ours)} & 0.52 & 11.70 & $6.3\cdot 10^{-4}$ \\
+$327{,}062 \times 37{,}830$ & \textbf{Adjoint (reproj.)} & 0.52 & 11.70 & $6.3\cdot 10^{-4}$ \\
 6.02M nonzeros & Autodiff & 54.5 & --- & --- \\
  & Lanczos adjoint on $A^\top A$ & 0.22 & 8.09 & $1.4\cdot 10^{-2}$ \\
  & Arnoldi adjoint, augmented & 2.10 & 51.34 & $1.5\cdot 10^{-3}$ \\
 \midrule
 \texttt{Rucci1} & Forward pass & 1.74 & 18.07 &  \\
-$1{,}977{,}885 \times 109{,}900$ & \textbf{Adjoint (ours)} & 2.60 & 36.50 & $5.4\cdot 10^{-4}$ \\
+$1{,}977{,}885 \times 109{,}900$ & \textbf{Adjoint (reproj.)} & 2.60 & 36.50 & $5.4\cdot 10^{-4}$ \\
 7.79M nonzeros & Autodiff & 277.0 & --- & --- \\
  & Lanczos adjoint on $A^\top A$ & 0.45 & 11.79 & $5.7\cdot 10^{-4}$ \\
  & Arnoldi adjoint, augmented & 11.8 & --- & --- \\

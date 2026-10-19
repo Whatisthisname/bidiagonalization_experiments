@@ -28,7 +28,7 @@ METHODS = {
         "marker": "o",
         "linestyle": ":",
     },
-    "bidiag_adjoint": {"label": "Adjoint (ours)", "color": _ADJOINT, "marker": "o", "zorder": 4},
+    "bidiag_adjoint": {"label": "Adjoint (reproj.)", "color": _ADJOINT, "marker": "o", "zorder": 4},
     "bidiag_adjoint_noreproj": {
         "label": "Adjoint (no reproj.)",
         "color": _ADJOINT,
