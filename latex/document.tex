@@ -58,6 +58,8 @@
 
 \newmdtheoremenv{theorem}{Theorem}
 \newtheorem{example}{Example}
+\theoremstyle{definition}
+\newtheorem{definition}{Definition}
 
 \begin{document}
 \title{Numerically stable gradients of Golub-Kahan Bidiagonalization}
@@ -65,21 +67,17 @@
 \maketitle
 
 \begin{abstract}
-Golub-Kahan bidiagonalization is the matrix-free workhorse behind least-squares solvers, partial singular value decompositions, and spectral sums of rectangular matrices, but differentiating through it is costly. Reverse-mode automatic differentiation stores the Krylov bases of every iteration, so its memory grows quadratically with the number of iterations, and without reorthogonalization its gradients inherit the forward pass's loss of orthogonality. Differentiating the Lanczos iteration on $A^\top A$ instead is cheap but squares the condition number. We derive a numerically stable, matrix-free adjoint for Golub-Kahan bidiagonalization. The starting point is that bidiagonalizing a matrix $A$ with initial vector $v$ is the same computation as a Hessenberg factorization of the augmented symmetric matrix $\left[\begin{smallmatrix}0 & A\\ A^\top & 0\end{smallmatrix}\right]$, so we can borrow the stable Hessenberg adjoint of \citet{kraemer2024gradients}. That augmented problem is mostly zeros; pruning them collapses the adjoint back to the original dimensions and leaves a small system built from matrix-vector products and a reprojection step. In our experiments, the adjoint needs about $1.5$ times the memory and twice the run time of the forward pass. Its gradients are at least as accurate as those of automatic differentiation and, for ill-conditioned matrices, more accurate than those of the Lanczos adjoint on $A^\top A$. On a sparse matrix with two million rows, it differentiates through $100$ iterations in $2.6$\,GB, where automatic differentiation would need $277$\,GB.
+We derive a numerically stable, matrix-free adjoint for Golub-Kahan bidiagonalization. Golub-Kahan bidiagonalization is the standard matrix-free method behind least-squares solvers and partial singular value decompositions. Reverse-mode automatic differentiation stores the Krylov bases of every iteration, so the memory of automatic differentiation grows quadratically with the number of iterations, and without reorthonormalization, automatic differentiation inherits the loss of orthogonality of the forward pass. Differentiating the Lanczos iteration on $A^\top A$ instead is cheap but squares the condition number. In our experiments, the adjoint needs about $1.5$ times the memory and twice the run time of the forward pass. The adjoint computes gradients at least as accurate as automatic differentiation and, for ill-conditioned matrices, more accurate than the Lanczos adjoint on $A^\top A$. On a sparse matrix with two million rows, the adjoint differentiates through $100$ iterations in $2.6$\,GB, where automatic differentiation would need $277$\,GB.
 \end{abstract}
 
-\tableofcontents
-\newpage
-
 \section{Introduction}
-Many models in scientific and probabilistic machine learning are tuned by differentiating functions of large matrices, where the matrix is available only through matrix-vector products~\citep{kraemer2024gradients}. Krylov methods such as bidiagonalization and the closely related Lanczos and Arnoldi iterations are the standard tools for these problems, yet differentiating the iterations themselves in a stable, matrix-free way has remained difficult.
+Fitting the parameters $\theta$ of a model often requires the gradient of a function of a large matrix $A_\theta$, that is, of a quantity computed from $A_\theta$ by linear algebra. Examples are the solution of a least-squares problem $\min_x \|A_\theta x - b\|_2$, the leading singular values and vectors of $A_\theta$, and the log-determinant $\log\det(A_\theta^\top A_\theta)$~\citep{kraemer2024gradients}. Large matrices are often available only \emph{matrix-free}, that is, through a function that computes the products $u \mapsto A_\theta u$ and $w \mapsto A_\theta^\top w$ without forming or storing $A_\theta$ in computer memory. Storing all entries of $A_\theta$ may be too expensive, as for large sparse or structured matrices, or $A_\theta$ may be defined only implicitly, as for convolutions, finite-difference operators, discrete Fourier transforms, or the Jacobian of a neural network. Krylov methods compute such quantities matrix-free: the Lanczos and Arnoldi iterations for square matrices, and Golub-Kahan bidiagonalization for rectangular ones. Differentiating the iterations themselves in a stable, matrix-free way has remained difficult.
 
-Golub-Kahan bidiagonalization~\citep{golub1965calculating} suffers from loss of orthogonality of the computed vectors in $L$ and $R$~\citep{paige1971computation}, which is repaired in the forward pass by reorthonormalizing each new vector against the previously computed ones~\citep{golub2013matrix}. Differentiating the iteration is harder. Reverse-mode automatic differentiation through the unrolled loop stores both bases after every step, so its memory grows quadratically with the number of steps, and without reorthonormalization, its gradients drift with the loss of orthogonality. Since $B^\top B$ is the tridiagonal matrix of the Lanczos iteration on $A^\top A$, the Lanczos adjoint of \citet{kraemer2024gradients} offers a cheaper route, but products with $A^\top A$ square the condition number.
+Golub-Kahan bidiagonalization~\citep{golub1965calculating} reduces $A$ to a small bidiagonal matrix $B$ by building orthonormal bases $L$ and $R$ with $AR = LB$, one column per step, from one product with $A$ and one with $A^\top$ (Section~\ref{subsec:bidiag}). In floating-point arithmetic, the computed bases lose orthogonality~\citep{paige1971computation}, which the forward pass repairs by reorthonormalizing each new vector against the previously computed vectors~\citep{golub2013matrix} (Appendix~\ref{app:reprojection}). Differentiating the iteration is harder. Reverse-mode automatic differentiation through the unrolled loop stores both bases after every step, so the memory of automatic differentiation grows quadratically with the number of steps, and without reorthonormalization, the gradients drift with the loss of orthogonality.
 
-This paper makes the gradient of bidiagonalization stable and matrix-free. We use that bidiagonalizing $A$ with initial vector $v$ is exactly a Hessenberg factorization of an augmented symmetric matrix built from $A$, so we can reuse the stable Hessenberg adjoint of \citet{kraemer2024gradients}. Most of that augmented problem is structurally zero, and pruning the zeros collapses the adjoint back to the original dimensions. What remains is a small system whose reprojection step does for the backward pass what reorthonormalization does for the forward pass. Section~\ref{sec:problem} sets up the connection to Hessenberg factorization, Section~\ref{sec:method} states the sparsity theorem and the resulting adjoint system, with all derivations in the appendix, and Section~\ref{sec:experiments} reports the experiments.
+This paper makes the gradient of bidiagonalization stable and matrix-free. We use that bidiagonalizing $A$ with initial vector $v$ is exactly a Hessenberg factorization of an augmented symmetric matrix built from $A$, so we can reuse the stable Hessenberg adjoint of \citet{kraemer2024gradients}. Most of the augmented problem is exactly zero, and pruning the zeros collapses the adjoint back to the original dimensions. What remains is a small system whose reprojection step does for the backward pass what reorthonormalization does for the forward pass. Section~\ref{sec:problem} defines bidiagonalization and Hessenberg factorization, explains why differentiating through bidiagonalization is difficult, and shows how a Hessenberg factorization computes a bidiagonalization. Section~\ref{sec:method} states the sparsity theorem and the resulting adjoint system, with all derivations in the appendix, and Section~\ref{sec:experiments} reports the experiments.
 
-\section{Problem statement}\label{sec:problem}
-This section defines bidiagonalization and Hessenberg factorization, explains why differentiating bidiagonalization is difficult, and recalls the connection between the two factorizations that the rest of the paper builds on.
+\section{Bidiagonalization and Hessenberg factorization}\label{sec:problem}
 
 \subsection{Notation}
 Let $e_j$ be the $j$th unit vector. Denote by ``$\circ$'' the element-wise 
@@ -94,16 +92,11 @@ I_{\ll} := [\delta_{i > j+1}]_{i,j=1}^K
 so that for example, $\mathbf{1} \circ A = A$, $I_{\leq} \circ A$ extracts the lower triangular matrix 
 of $A$ (including the diagonal), and $I_{\ll} \circ A = 0$ enforces Hessenberg form.
 
-\subsection{Matrix free linear algebra}
-Matrix-free linear algebra refers to implementing matrix operations without explicitly forming or storing the full matrices. Instead, we work with functions that compute matrix-vector products. This is particularly useful when dealing with large matrices where storing them would be impractical, or when the matrix is defined implicitly through some operation, where we never need the full matrix, only specific matrix-vector products.
-For a linear operator $A: \mathbb{R}^m \rightarrow \mathbb{R}^n$, instead of storing an $n \times m$ matrix, we represent it as a function:
-
-$$\text{matvec}: \mathbb{R}^m \times \Theta \rightarrow \mathbb{R}^n$$
-such that $\text{matvec}(v, \theta) = A_\theta v$ for any vector $v \in \mathbb{R}^m$ and parameters $\theta \in \Theta$. This approach enables a general way to handle general linear operators, such as matrix-vector products with sparse and structured matrices, the jacobian-vector product of a neural network, finite-difference operators, discrete fourier transforms and other linear operators acting between vector spaces.
-
-\subsection{Bidiagonalization}
+\subsection{Golub-Kahan bidiagonalization}\label{subsec:bidiag}
+Golub-Kahan bidiagonalization~\citep{golub1965calculating} reduces a rectangular matrix $A$ to a small bidiagonal matrix, using only matrix-vector products with $A$ and $A^\top$.
+\begin{definition}[Bidiagonalization]\label{def:bidiag}
 $$\texttt{Bidiagonalize}_K: (A, v) \mapsto (L, R, B, r, c)$$
-Bidiagonalizing an arbitrary matrix $A \in \mathbb{R}^{N \times M}$ with initial vector $v \in \mathbb{R}^M$ and a prescribed number of iterations $K \in \mathbb{N}_+$, will yield column-orthonormal $L \in \mathbb{R}^{N \times K}$ and $R \in \mathbb{R}^{M \times K}$, bidiagonal $B \in \mathbb{R}^{K \times K}$, residual vector $r \in \mathbb{R}^M$ and inverse length $c \in \mathbb{R}$, satisfying the following constraints:
+Bidiagonalizing a matrix $A \in \mathbb{R}^{N \times M}$ with initial vector $v \in \mathbb{R}^M$ and a prescribed number of iterations $K \in \mathbb{N}_+$ yields column-orthonormal $L \in \mathbb{R}^{N \times K}$ and $R \in \mathbb{R}^{M \times K}$, bidiagonal $B \in \mathbb{R}^{K \times K}$, residual vector $r \in \mathbb{R}^M$, and scalar $c \in \mathbb{R}$, satisfying the following constraints:
 \begin{align}
     A^\top L &= RB^\top + r(e_K)^\top \label{eq:bidiag_forward_constraint1}
     \\
@@ -128,15 +121,19 @@ B = \underbrace{\text{diag}(\boldsymbol{\alpha}) + \text{diag}(\boldsymbol{\beta
 \end{bmatrix} \in \mathbb{R}^{K \times K} \label{eq:bidiag_forward_constraint7}
 \end{align}
 The full rank property on $B$ implies that no components of $\boldsymbol{\alpha}$ or $\boldsymbol{\beta}$ can be zero.
+\end{definition}
+Bidiagonalization is an iteration: each iteration computes one new column of $L$ from a product with $A$ and one new column of $R$ from a product with $A^\top$, and orthogonalizes each new column only against the previous column of the same basis. In exact arithmetic, the new columns are then orthogonal to all previous columns as well, so the columns of $L$ and $R$ are orthonormal by construction. In floating-point arithmetic, the rounding errors of each iteration carry over into all later iterations, and the computed columns lose orthogonality as $K$ grows~\citep{paige1971computation}. Implementations therefore \emph{reorthonormalize} every new column against all previous columns of $L$ and $R$. Appendix~\ref{app:reprojection} describes the reorthonormalization step, and Section~\ref{subsec:stable_adjoint_system} the counterpart of reorthonormalization in the backward pass.
 
-\paragraph{Differentiating bidiagonalization.}
-Applications evaluate a loss $\rho(L, R, B, r, c)$ of the outputs and need its gradient with respect to $A$, or to the parameters of a matrix-vector product, and $v$. Reverse-mode automatic differentiation through the iteration stores all intermediate quantities, including the bases $L$ and $R$ after every step, so its memory grows quadratically in $K$. Its gradients are those of the floating-point iteration: without reorthonormalization, they drift together with the forward pass's loss of orthogonality. Through the reorthonormalized iteration, they were as accurate as those of our adjoint in our experiments, and memory is the main drawback of automatic differentiation (Section~\ref{sec:experiments}). Since $B^\top B$ equals the tridiagonal matrix of $K$ Lanczos steps on $A^\top A$ with the same start vector, one can also differentiate that iteration with the adjoint of \citet{kraemer2024gradients}. This is cheap, but products with $A^\top A$ square the condition number of $A$, which costs accuracy for ill-conditioned matrices (Section~\ref{subsec:partial_depth}). We instead derive an adjoint for bidiagonalization itself, by way of the Hessenberg factorization.
+\paragraph{Differentiating through bidiagonalization.}
+Bidiagonalization is usually one step of a larger computation, such as a least-squares solve, a partial singular value decomposition, or a log-determinant estimate, and fitting the parameters of such a computation with gradient-based optimization requires derivatives through the bidiagonalization. We write the rest of the computation as a loss $\rho(L, R, B, r, c)$ of the outputs and seek the gradients of $\rho$ with respect to $A_\theta$, or to the parameters $\theta$, and with respect to $v$. Reverse-mode automatic differentiation through the $K$ iterations stores the intermediate quantities of every iteration for the backward pass. The reorthonormalization step of every iteration reads the bases $L$ and $R$, so automatic differentiation stores a copy of both bases, with up to $K(N + M)$ entries, in each of the $K$ iterations. The memory of automatic differentiation therefore grows quadratically in $K$, whereas the bases themselves need only $K(N + M)$ entries. We instead derive an adjoint for bidiagonalization itself, by way of the Hessenberg factorization. \citet{kraemer2024gradients} derived an adjoint for Hessenberg factorization that is numerically stable and needs only matrix-vector products, and Section~\ref{sec:bidiag_through_hessenberg} shows that a Hessenberg factorization of an augmented matrix computes the bidiagonalization, so that the stable adjoint applies to bidiagonalization as well.
 
-\subsection{Hessenberg Factorization}
+\subsection{Hessenberg factorization}
+Section~\ref{sec:bidiag_through_hessenberg} computes bidiagonalization with a Hessenberg factorization, the counterpart of bidiagonalization for square matrices, which reduces a square matrix $A$ to a small upper Hessenberg matrix $H$.
+\begin{definition}[Hessenberg factorization]\label{def:hessenberg}
 $$\texttt{Hessenberg}_K: (A, v) \mapsto (Q, H, r, c)$$
-Given a square matrix $A \in \mathbb{R}^{N \times N}$ an initial vector $v \in \mathbb{R}^N$ and a prescribed number of iterations $K \in \mathbb{N}_+$, the Hessenberg factorization produces a column-orthogonal $Q \in \mathbb{R}^{N \times K}$, 
+Given a square matrix $A \in \mathbb{R}^{N \times N}$, an initial vector $v \in \mathbb{R}^N$, and a prescribed number of iterations $K \in \mathbb{N}_+$, the Hessenberg factorization produces a column-orthogonal $Q \in \mathbb{R}^{N \times K}$, 
 structured $H \in \mathbb{R}^{K \times K}$, residual vector $r \in \mathbb{R}^N$, 
-and reciprocal length $c \in \mathbb{R}$ such that
+and scalar $c \in \mathbb{R}$ such that
 \begin{align}
 AQ &= QH + r(e_K)^\top \label{eq:hessenberg_forward_constraint1}
 \\
@@ -148,10 +145,11 @@ I_{\ll} \circ H &= 0 \label{eq:hessenberg_forward_constraint4}
 \\
 Q^\top r &= 0 \label{eq:hessenberg_forward_constraint5}
 \end{align}
+\end{definition}
+The Arnoldi iteration computes the Hessenberg factorization matrix-free, one column of $Q$ per iteration; the experiments in Section~\ref{sec:experiments} refer to the Hessenberg factorization by the name of this algorithm.
 
-
-\subsection{Hessenberg factorization generalizes Bidiagonalization}\label{sec:bidiag_through_hessenberg}
-To compute $\texttt{Bidiagonalize}_K(A, v) = (L, R, B, r, c)$ for any $A \in \mathbb{R}^{N \times M}$ and $v \in \mathbb{R}^M$ using Hessenberg factorization, we construct the symmetric matrix $\dddot{A}$ and augmented vector $\dddot{v}$:
+\subsection{Using Hessenberg factorization to compute bidiagonalization}\label{sec:bidiag_through_hessenberg}
+We can implement $\texttt{Bidiagonalize}_K(A, v)$ by passing an augmented version of $(A, v)$ through $\texttt{Hessenberg}_{2K}$. For $A \in \mathbb{R}^{N \times M}$ and $v \in \mathbb{R}^M$, we construct the symmetric matrix $\dddot{A}$ and augmented vector $\dddot{v}$:
 \begin{align}
     \dddot{A} := \begin{bmatrix}\mathbf{0} & A \\ A^\top & \mathbf{0}\end{bmatrix} \in \mathbb{R}^{(N+M) \times (N+M)} \label{eq:A_sparsity_pattern}
 \end{align}
@@ -159,9 +157,9 @@ To compute $\texttt{Bidiagonalize}_K(A, v) = (L, R, B, r, c)$ for any $A \in \ma
 \dddot{v} := \begin{pmatrix}\mathbf{0} \\ v \end{pmatrix} \in \mathbb{R}^{N+M} \label{eq:v_sparsity_pattern}
 \end{align}
 We define the operation $\texttt{augment}: (A, v) \mapsto (\dddot{A}, \dddot{v})$ as the augmentation of a matrix and vector to this symmetric matrix and padded vector.
-Applying Hessenberg factorization for $2K$ iterations to this augmented input yields
-$\texttt{Hessenberg}_{2K}(\dddot{A}, \dddot{v}) = (\dddot{Q}, \dddot{H}, \dddot{r}, c)$
-which are directly related to $(L, R, B, r, c)$ through the following sparse equations:
+Applying Hessenberg factorization for $2K$ iterations to this augmented input yields the output
+$\texttt{Hessenberg}_{2K}(\dddot{A}, \dddot{v}) = (\dddot{Q}, \dddot{H}, \dddot{r}, c)$,
+which is directly related to the output $(L, R, B, r, c)$ of bidiagonalization through the following sparse equations:
 
 \begin{align}
 \dddot{Q} :&= \begin{bmatrix}\mathbf{0} & l_1 & \mathbf{0} & l_2 & \cdots & \mathbf{0} & l_k \\ r_1 & \mathbf{0} & r_2 & \mathbf{0} &  \cdots & r_k & \mathbf{0} \end{bmatrix} \in \mathbb{R}^{(N+M) \times 2K}  \label{eq:Q_sparsity_pattern} 
@@ -181,19 +179,19 @@ which are directly related to $(L, R, B, r, c)$ through the following sparse equ
 0 & 0 & 0 & 0 & 0 & 0  & \alpha_K & 0\\
 \end{bmatrix} \in \mathbb{R}^{2K \times 2K} \label{eq:H_sparsity_pattern}
 \end{align}
-The vectors $l_i$ and $r_i$ in $\dddot{Q}$ are exactly the columns of $L$ and $R$. $\dddot{H}$ is symmetric and banded, where the two bands hold the entries of the bidiagonal matrix $B$ with twice repeated interwoven $\boldsymbol{\alpha}$ and $\boldsymbol{\beta}$ values. Recall that $\boldsymbol{\alpha}$ and $\boldsymbol{\beta}$ were everywhere nonzero. The residual vector $\dddot{r}$ is a padded version of $r$, and the inverse norm $c$ is unchanged.
+The vectors $l_i$ and $r_i$ in $\dddot{Q}$ are exactly the columns of $L$ and $R$. $\dddot{H}$ is symmetric and banded, where the two bands hold the entries of the bidiagonal matrix $B$ with twice repeated interwoven $\boldsymbol{\alpha}$ and $\boldsymbol{\beta}$ values. Recall that $\boldsymbol{\alpha}$ and $\boldsymbol{\beta}$ were everywhere nonzero. The residual vector $\dddot{r}$ is a padded version of $r$, and the scalar $c$ is unchanged.
 \\
 We formalize this relationship through a linear extraction mapping 
 $$\texttt{extract}: (\dddot{Q}, \dddot{H}, \dddot{r}, c) \mapsto (L, R, B, r, c)$$ 
-that just projects away the zeros and extracts the relevant non-zero entries from the Hessenberg outputs.\footnote{The projection from $\dddot{H}$ to $B$ is not unique, as $\dddot{H}$ contains two copies of each $\alpha_i$ and $\beta_i$. We arbitrarily select the superdiagonal entries and drop the subdiagonal entries. This choice affects the sparsity pattern of $\nabla_{\dddot{H}} \rho$ in Appendix~\ref{app:input_gradients}. Any other convex linear combination of each pair would also be valid.} This allows us to formalize \textbf{augmented Bidiagonalization} as $$\overline{\texttt{Bidiagonalize}}_K := \texttt{extract} \circ \texttt{Hessenberg}_{2K} \circ \texttt{augment} : (A, v) \mapsto (L, R, B, r, c)$$ which is functionally equivalent to standard Bidiagonalization but inherits the numerical stability properties of Hessenberg factorization's adjoint system. 
+that just projects away the zeros and extracts the relevant non-zero entries from the Hessenberg outputs.\footnote{The projection from $\dddot{H}$ to $B$ is not unique, as $\dddot{H}$ contains two copies of each $\alpha_i$ and $\beta_i$. We arbitrarily select the superdiagonal entries and drop the subdiagonal entries. This choice affects the sparsity pattern of $\nabla_{\dddot{H}} \rho$ in Appendix~\ref{app:input_gradients}. Any other convex linear combination of each pair would also be valid.} With this mapping, we formalize \textbf{augmented Bidiagonalization} as $$\overline{\texttt{Bidiagonalize}}_K := \texttt{extract} \circ \texttt{Hessenberg}_{2K} \circ \texttt{augment} : (A, v) \mapsto (L, R, B, r, c)$$ which is functionally equivalent to standard Bidiagonalization but inherits the numerical stability properties of Hessenberg factorization's adjoint system. 
 \\
-The augmented problem has dimension $N + M$ and takes $2K$ steps, but most of its entries are structurally zero. Section~\ref{sec:method} prunes these zeros from its adjoint system.
+The augmented problem has dimension $N + M$ and runs for $2K$ iterations, but most entries of $\dddot{A}$, $\dddot{Q}$, and $\dddot{H}$ are exactly zero. Section~\ref{sec:method} prunes these zeros from the adjoint system of the augmented problem.
 
 \section{A stable adjoint for bidiagonalization}\label{sec:method}
-We derive the adjoint system of augmented bidiagonalization in three steps: we recall the adjoint system of Hessenberg factorization (Section~\ref{subsec:adjoint_hessenberg}), show that its solution inherits the block structure of the augmented input (Section~\ref{subsec:derivation_stable_adjoint_system}), and use this structure to reduce it to the original dimensions (Section~\ref{subsec:stable_adjoint_system}). Proofs and derivations are in Appendices~\ref{app:adjoint_method}--\ref{app:reprojection}.
+We derive the adjoint system of augmented bidiagonalization in three steps: we recall the adjoint system of Hessenberg factorization (Section~\ref{subsec:adjoint_hessenberg}), show that the solution of this adjoint system inherits the block structure of the augmented input (Section~\ref{subsec:derivation_stable_adjoint_system}), and use this structure to reduce the adjoint system to the original dimensions (Section~\ref{subsec:stable_adjoint_system}). Proofs and derivations are in Appendices~\ref{app:adjoint_method}--\ref{app:reprojection}.
 
 \paragraph{The adjoint method.}
-We differentiate with the adjoint method, which Appendix~\ref{app:adjoint_method} recalls. If the output $x$ of an algorithm satisfies a constraint $c(x, \theta) = \mathbf{0}$ for its input $\theta$, then the gradient of a loss $\ell(x)$ is $\nabla_\theta \ell = -(\partial c / \partial \theta)^\top \boldsymbol{\lambda}$, where the adjoint variables $\boldsymbol{\lambda}$ solve the adjoint system $\nabla_x \ell = (\partial c / \partial x)^\top \boldsymbol{\lambda}$. For Krylov iterations, the adjoint system is a backward recursion that mirrors the forward iteration~\citep{kraemer2024gradients}, so gradients cost about as much as the forward pass and do not require storing the intermediate quantities of the iteration.
+We differentiate with the adjoint method, which Appendix~\ref{app:adjoint_method} recalls. If the output $x$ of an algorithm satisfies a constraint $c(x, \theta) = \mathbf{0}$ for the input $\theta$ of the algorithm, then the gradient of a loss $\ell(x)$ is $\nabla_\theta \ell = -(\partial c / \partial \theta)^\top \boldsymbol{\lambda}$, where the adjoint variables $\boldsymbol{\lambda}$ solve the adjoint system $\nabla_x \ell = (\partial c / \partial x)^\top \boldsymbol{\lambda}$. For Krylov iterations, the adjoint system is a backward recursion that mirrors the forward iteration~\citep{kraemer2024gradients}, so gradients cost about as much as the forward pass and do not require storing the intermediate quantities of the iteration.
 
 \subsection{The adjoint system of Hessenberg factorization}\label{subsec:adjoint_hessenberg}
 \citet[Theorem~4.1]{kraemer2024gradients} derive the adjoint system of Hessenberg factorization.
@@ -214,26 +212,26 @@ The gradients $\nabla_A\rho$ and $\nabla_v\rho$ are then given by\footnote{Note 
 Appendix~\ref{app:solving_adjoint_system} recalls how to solve this system with a backward recursion over the columns of $\Lambda$ and $\Gamma$: the initialization \eqref{eq:get_gamma} and \eqref{eq:get_last_lambda}, followed by the steps \eqref{eq:get_Gamma_i} and \eqref{eq:get_lambda_i} for $i = K, \dots, 1$. Each step needs one product with $A^\top$, so the backward pass costs as much as the forward pass.
 
 \subsection{Sparsity of the augmented adjoint system}\label{subsec:derivation_stable_adjoint_system}
-As described in Section~\ref{sec:bidiag_through_hessenberg}, augmented Bidiagonalization $\overline{\texttt{Bidiagonalize}}_K$ computes bidiagonalization through $\texttt{Hessenberg}_{2K}$, so the adjoint system of Section~\ref{subsec:adjoint_hessenberg} applies to it. Its variables $\Lambda, \Gamma, \lambda_0, \gamma$ have $N + M$ rows or $2K$ columns, but most of their entries are zero, because the augmented inputs $\dddot{A}, \dddot{v}$ and outputs $\dddot{Q}, \dddot{H}, \dddot{r}$ have the alternating block structure of \eqref{eq:A_sparsity_pattern}--\eqref{eq:H_sparsity_pattern}. The following theorem makes this precise, using a notation for sparsity patterns that we introduce first.
+As described in Section~\ref{sec:bidiag_through_hessenberg}, augmented Bidiagonalization $\overline{\texttt{Bidiagonalize}}_K$ computes bidiagonalization through $\texttt{Hessenberg}_{2K}$, so the adjoint system of Section~\ref{subsec:adjoint_hessenberg} applies to augmented bidiagonalization. The adjoint variables $\Lambda, \Gamma, \lambda_0, \gamma$ have $N + M$ rows or $2K$ columns, but most entries of the adjoint variables are zero, because the augmented inputs $\dddot{A}, \dddot{v}$ and outputs $\dddot{Q}, \dddot{H}, \dddot{r}$ have the alternating block structure of \eqref{eq:A_sparsity_pattern}--\eqref{eq:H_sparsity_pattern}. The following theorem makes this statement precise, using a notation for sparsity patterns that we introduce first.
 
 \paragraph{Sparsity notation.}
-It will be convenient to characterize the sparsity and dimensionality of vectors and matrices succinctly. We use the symbol $*$ to denote an unknown scalar. Thus, $(*, 0, 0)^\top$ can be thought of as the span of the first unit vector. Formally, define an extension of the reals as $\mathbb{R}_* = \mathbb{R} \cup \{*\}$, where the sum and product with $*$ are extended as 
+We characterize the sparsity and dimensionality of vectors and matrices succinctly as follows. We use the symbol $*$ to denote an unknown scalar. Thus, $(*, 0, 0)^\top$ can be thought of as the span of the first unit vector. Formally, define an extension of the reals as $\mathbb{R}_* = \mathbb{R} \cup \{*\}$, where the sum and product with $*$ are extended as 
 \begin{align*}
     s + * = * \quad\quad\quad
     s \cdot * = \bigg\{ \begin{array}{cr} 0 & s = 0 \\ * & \text{otherwise}  \end{array}
 \end{align*}
-Note that this implies $* - * = *$. Now, for $s, s' \in \mathbb{R}_*$, define partial order $$s \preceq s' \iff \square(s) \subseteq \square(s')$$ 
+These rules imply $* - * = *$. Now, for $s, s' \in \mathbb{R}_*$, define partial order $$s \preceq s' \iff \square(s) \subseteq \square(s')$$ 
 where
 \begin{align*}
     % \square &: \mathbb{R}_* \to \{\mathbb{R}, \{r\} (r \in \mathbb{R})\}
     % \\
     \square(s) &= \bigg\{ \begin{array}{cr} \{s\} & s \in \mathbb{R} \\ \mathbb{R} & s = * \end{array}
 \end{align*}
-This implies $s \preceq *$. We extend $\mathbb{R}_*$ to vector spaces with an elementwise $+$, $\cdot$, and $\preceq$.
+This definition implies $s \preceq *$. We extend $\mathbb{R}_*$ to vector spaces with an elementwise $+$, $\cdot$, and $\preceq$.
 
 \begin{theorem}\label{thm:sparsity}
     Let loss $\rho^\star(L, R, B, r, c) \in \mathbb{R}$ be a loss of the output of Bidiagonalization. Let $(A, v) := \texttt{augment}(A', v')$. Then, the adjoint variables $\Lambda \in \mathbb{R}^{(N+M) \times 2K}, \Gamma \in \mathbb{R}^{2K \times 2K}, \lambda_0 \in \mathbb{R}^{N+M}, \gamma \in \mathbb{R}^{2K} $ associated with a loss 
-    $$\rho(A, v) := (\rho^\star \circ \texttt{extract} \circ \texttt{Hessenberg}_{2K})(A, v) \in \mathbb{R}$$ are highly sparse. In addition to the constraints of the adjoint system given in \eqref{eq:adjoint_hessenberg_constraint1}--\eqref{eq:adjoint_hessenberg_constraint4}, for $i \in \{1, \dots, 2K\}$, they satisfy the sparsity relations
+    $$\rho(A, v) := (\rho^\star \circ \texttt{extract} \circ \texttt{Hessenberg}_{2K})(A, v) \in \mathbb{R}$$ are highly sparse. In addition to the constraints of the adjoint system given in \eqref{eq:adjoint_hessenberg_constraint1}--\eqref{eq:adjoint_hessenberg_constraint4}, for $i \in \{1, \dots, 2K\}$, the adjoint variables satisfy the sparsity relations
     $$\begin{array}{rrl}
         \text{For even $i$: }& \quad\quad \Lambda e_i \preceq& \big[\overbrace{0 \;\; 0 \;\; \cdots \;\; 0}^{N} \;\; \overbrace{* \;\; * \;\; \cdots \;\; *}^{M}\big] ^\top
         \\
@@ -246,7 +244,7 @@ This implies $s \preceq *$. We extend $\mathbb{R}_*$ to vector spaces with an el
     \end{array}$$
     $$\lambda_0 \preceq \big[\overbrace{0 \;\; 0 \;\; \cdots \;\; 0}^{N} \;\; \overbrace{* \;\; * \;\; \cdots \;\; *}^{M}\big] ^\top \quad \quad \gamma \preceq \begin{bmatrix} * & 0 & * & 0 & \cdots & 0 & * & 0 \end{bmatrix}^\top$$
 \end{theorem}
-The proof is a backward induction over $i = 2K, \dots, 1$ through the recursion of Appendix~\ref{app:solving_adjoint_system}; it is in Appendix~\ref{app:sparsity_proofs}.
+The proof in Appendix~\ref{app:sparsity_proofs} is a backward induction over $i = 2K, \dots, 1$ through the recursion of Appendix~\ref{app:solving_adjoint_system}.
 
 We will give names to all nonzero entries in $\Lambda, \Gamma, \lambda, \gamma$.
 The theorem implies that $\Gamma$ is lower triangular and has a checkered sparsity pattern with a zero in the lower left. The structure is best conveyed for $K=6$, whose entries we name in the following systematic manner
@@ -280,7 +278,7 @@ $$\lambda_0 = \begin{bmatrix}
 \end{bmatrix}^\top \begin{array}{c}\text{ with }\\\text{ alias }\end{array} \; \eta := \begin{pmatrix}\eta_1 \\ \vdots \\ \eta_K\end{pmatrix} \in \mathbb{R}^K$$
 
 \subsection{The stable adjoint system}\label{subsec:stable_adjoint_system}
-Substituting these block structures into the Hessenberg recursion, every equation separates into an $N$-block and an $M$-block, and the zero blocks drop out (Appendix~\ref{app:stable_derivation}). Collecting the remaining equations gives the following adjoint system for bidiagonalization. In it, $\nabla_L$ and $\nabla_R$ abbreviate $\nabla_L \rho$ and $\nabla_R \rho$, $\kappa := \xi_0$ is the nonzero block of $\lambda_0$, and $\text{res}$ denotes the residual $r$ of bidiagonalization, to distinguish it from the columns $r_n$ of $R$:
+Substituting these block structures into the Hessenberg recursion, every equation separates into an $N$-block and an $M$-block, and the zero blocks drop out (Appendix~\ref{app:stable_derivation}). Collecting the remaining equations gives the following adjoint system for bidiagonalization. In this system, $\nabla_L$ and $\nabla_R$ abbreviate $\nabla_L \rho$ and $\nabla_R \rho$, $\kappa := \xi_0$ is the nonzero block of $\lambda_0$, and $\text{res}$ denotes the residual $r$ of bidiagonalization, to distinguish the residual from the columns $r_n$ of $R$:
 \begin{mdframed}
 \begin{align}
     \eta &= -R^\top \nabla_r \rho + \nabla_{\alpha_K}\rho\, e_K \label{eq:stable_system_eta}
@@ -302,23 +300,23 @@ Substituting these block structures into the Hessenberg recursion, every equatio
     \nabla_A\rho &= \Phi R^\top + L\Xi^\top \label{eq:stable_system_grad_A}
 \end{align}
 \end{mdframed}
-\noindent This system is solved by the same backward loop as the general Hessenberg adjoint (Appendix~\ref{app:solving_adjoint_system}), but operating entirely in the original dimensions: $\Phi, \Xi \in \mathbb{R}^{N \times K}$ and $\mathbb{R}^{M \times K}$ respectively, with $\Omega, \Sigma \in \mathbb{R}^{K \times K}$ lower triangular. The reprojection constraints \eqref{eq:stable_system_reprojL}--\eqref{eq:stable_system_reprojR} provide the numerical stability mechanism: they give an explicit target for $L^\top \phi_n$ and $R^\top \xi_n$ in known coordinates, enabling the reprojection correction described in Appendix~\ref{app:reprojection}. Appendix~\ref{app:alt} states an equivalent system column by column, directly in the original coordinates.
+\noindent This system is solved by the same backward loop as the general Hessenberg adjoint (Appendix~\ref{app:solving_adjoint_system}), but operating entirely in the original dimensions: $\Phi, \Xi \in \mathbb{R}^{N \times K}$ and $\mathbb{R}^{M \times K}$ respectively, with $\Omega, \Sigma \in \mathbb{R}^{K \times K}$ lower triangular. The reprojection constraints \eqref{eq:stable_system_reprojL}--\eqref{eq:stable_system_reprojR} provide the numerical stability mechanism: the constraints give an explicit target for $L^\top \phi_n$ and $R^\top \xi_n$ in known coordinates, enabling the reprojection correction described in Appendix~\ref{app:reprojection}. Appendix~\ref{app:alt} states an equivalent system column by column, directly in the original coordinates.
 
 \paragraph{Parameter gradients.}
 If $A = A(\theta)$ is only available through matrix-vector products, \eqref{eq:stable_system_grad_A} and $\mathrm{d}A = D_\theta A\, \mathrm{d}\theta$ give
 \begin{align}
     \nabla_\theta \rho = \sum_{n=1}^{K} \nabla_\theta \big[\phi_n^\top A(\theta)\, r_n + l_n^\top A(\theta)\, \xi_n\big], \label{eq:stable_system_grad_theta}
 \end{align}
-where $\phi_n$, $r_n$, $l_n$, and $\xi_n$ are held fixed. Each summand is a vector-Jacobian product of the matrix-vector products $u \mapsto A(\theta) u$ and $w \mapsto A(\theta)^\top w$ that the backward loop evaluates anyway, so the gradient accumulates during the loop, as for the Lanczos and Arnoldi adjoints~\citep[Corollary~4.3]{kraemer2024gradients}. Each step of the loop needs one product with $A$, one with $A^\top$, and inner products with $L$ and $R$; besides the outputs of the forward pass, it stores only the current $\phi_n$ and $\xi_n$ and the $K \times K$ matrices $\Omega$ and $\Sigma$.
+where $\phi_n$, $r_n$, $l_n$, and $\xi_n$ are held fixed. Each summand is a vector-Jacobian product of the matrix-vector products $u \mapsto A(\theta) u$ and $w \mapsto A(\theta)^\top w$ that the backward loop evaluates anyway, so the gradient accumulates during the loop, as for the Lanczos and Arnoldi adjoints~\citep[Corollary~4.3]{kraemer2024gradients}. Each step of the loop needs one product with $A$, one with $A^\top$, and inner products with $L$ and $R$; besides the outputs of the forward pass, the loop stores only the current $\phi_n$ and $\xi_n$ and the $K \times K$ matrices $\Omega$ and $\Sigma$.
 
 \paragraph{Reorthonormalization and reprojection.}
-In floating-point arithmetic, the forward pass loses the orthogonality of $L$ and $R$ and is therefore reorthonormalized against both bases in every step~\citep{golub2013matrix}; we use two passes. The reprojection constraints \eqref{eq:stable_system_reprojL}--\eqref{eq:stable_system_reprojR} play the same role in the backward pass: they prescribe $L^\top \phi_n$ and $R^\top \xi_n$, and projecting every new adjoint vector onto these constraints removes the rounding errors that accumulate during the backward loop. Appendix~\ref{app:reprojection} describes this step and shows that, in single precision, both corrections are necessary (Figure~\ref{fig:reorthogonalization}).
+In floating-point arithmetic, the forward pass loses the orthogonality of $L$ and $R$ and is therefore reorthonormalized against both bases in every step~\citep{golub2013matrix}; we use two passes. The reprojection constraints \eqref{eq:stable_system_reprojL}--\eqref{eq:stable_system_reprojR} play the same role in the backward pass: the constraints prescribe $L^\top \phi_n$ and $R^\top \xi_n$, and projecting every new adjoint vector onto these constraints removes the rounding errors that accumulate during the backward loop. Appendix~\ref{app:reprojection} describes this reprojection step and shows that, in single precision, both corrections are necessary (Figure~\ref{fig:reorthogonalization}).
 
 \section{Experiments}\label{sec:experiments}
 All methods are implemented in JAX~\citep{jax2018github}. We first run the iteration to full depth, where the reconstruction $LBR^\top = A$ provides a ground truth (Section~\ref{subsec:full_depth}). Section~\ref{subsec:partial_depth} then turns to partial depth, the regime of applications, and adds the Lanczos adjoint on $A^\top A$, the augmented Arnoldi adjoint, and large sparse matrices. Appendix~\ref{app:setup} lists the setups; the code stores all raw measurements, from which one script draws every figure and table.
 
 \subsection{Full depth}\label{subsec:full_depth}
-At full depth, $k = \min(N, M)$, the map $A \mapsto LBR^\top$ is the identity, so its Jacobian is the identity matrix, and we report the root-mean-square deviation of the computed Jacobian from it. We compare reverse-mode automatic differentiation through the iteration (\textit{autodiff}) with the adjoint, each with and without its stabilization: reorthonormalization of the forward pass for autodiff, and reprojection in the backward pass for the adjoint, which always runs the reorthonormalized forward pass. Appendix~\ref{app:full_depth_setup} lists the details.
+At full depth, $k = \min(N, M)$, the map $A \mapsto LBR^\top$ is the identity, so the Jacobian of this map is the identity matrix, and we report the root-mean-square deviation of the computed Jacobian from the identity. We compare reverse-mode automatic differentiation through the iteration (\textit{autodiff}) with the adjoint, each with and without stabilization: reorthonormalization of the forward pass for autodiff, and reprojection in the backward pass for the adjoint, which always runs the reorthonormalized forward pass. Appendix~\ref{app:full_depth_setup} lists the details.
 
 \begin{figure}[t]
     \centering
@@ -335,20 +333,20 @@ At full depth, $k = \min(N, M)$, the map $A \mapsto LBR^\top$ is the identity, s
 \end{figure}
 
 \paragraph{Accuracy.}
-In double precision (Figure~\ref{fig:full_depth_accuracy}, left), autodiff through the reorthonormalized iteration and the adjoint, with or without reprojection, all reproduce the identity Jacobian to within $2 \cdot 10^{-15}$. Without reorthonormalization, autodiff differentiates an iteration that loses orthogonality, and its error grows from $10^{-15}$ at $n = 4$ to $10^{-3}$ at $n = 16$ and to order one beyond. In single precision (right), the adjoint stays below $1.2 \cdot 10^{-5}$ at every size, whereas without reprojection its error exceeds $1$ from $n = 20$ on (Appendix~\ref{app:reprojection}). Autodiff through the reorthonormalized iteration returns NaNs at every size. This failure is specific to full depth: the residual after the last step vanishes in exact arithmetic, here it is exactly zero in single precision, and the derivative of the Euclidean norm at zero is undefined. One step fewer, $k = n - 1$, gives finite gradients. Without reorthonormalization, autodiff avoids the zero but inherits the forward pass's loss of orthogonality, and its errors are of order one.
+In double precision (Figure~\ref{fig:full_depth_accuracy}, left), autodiff through the reorthonormalized iteration and the adjoint, with or without reprojection, all reproduce the identity Jacobian to within $2 \cdot 10^{-15}$. Without reorthonormalization, autodiff differentiates an iteration that loses orthogonality, and the error of autodiff grows from $10^{-15}$ at $n = 4$ to $10^{-3}$ at $n = 16$ and to order one beyond. In single precision (right), the adjoint stays below $1.2 \cdot 10^{-5}$ at every size, whereas the error of the adjoint without reprojection exceeds $1$ from $n = 20$ on (Appendix~\ref{app:reprojection}). Autodiff through the reorthonormalized iteration returns NaNs at every size. This failure is specific to full depth: the residual after the last step vanishes in exact arithmetic and here is exactly zero in single precision, and the derivative of the Euclidean norm at zero is undefined. One step fewer, $k = n - 1$, gives finite gradients. Without reorthonormalization, autodiff avoids the zero but inherits the loss of orthogonality of the forward pass, with errors of order one.
 
 \paragraph{Cost.}
-The backward pass of the adjoint costs about as much as the forward pass at every size ($3.4$\,s versus $3.7$\,s at $n = 1170$; Figure~\ref{fig:full_depth_cost}), and its memory grows quadratically in $n$, like that of the forward pass, to $66$\,MB at $n = 1170$. Autodiff stores the Krylov bases at every step, so its memory grows cubically: it needs $6.7$\,GB at $n = 570$, $430$ times as much as the adjoint, and would need $58$\,GB at $n = 1170$. Up to $n = 370$, its backward pass is as fast as the adjoint's; at $n = 570$, it takes seven times as long ($3.0$\,s versus $0.43$\,s). Compile time does not grow with the depth for either method, because both run the iteration as a compiled loop: for a diagonal $950 \times 950$ operator and $k$ from $20$ to $100$, it stays between $0.08$ and $0.11$\,s for the forward pass and between $0.13$ and $0.17$\,s for either backward pass.
+The backward pass of the adjoint costs about as much as the forward pass at every size ($3.4$\,s versus $3.7$\,s at $n = 1170$; Figure~\ref{fig:full_depth_cost}), and the memory of the adjoint grows quadratically in $n$, like the memory of the forward pass, to $66$\,MB at $n = 1170$. Autodiff stores the Krylov bases at every step, so the memory of autodiff grows cubically: autodiff needs $6.7$\,GB at $n = 570$, $430$ times as much as the adjoint, and would need $58$\,GB at $n = 1170$. Up to $n = 370$, the two backward passes are equally fast; at $n = 570$, autodiff takes seven times as long as the adjoint ($3.0$\,s versus $0.43$\,s). Compile time does not grow with the depth for either method, because both methods run the iteration as a compiled loop: for a diagonal $950 \times 950$ operator and $k$ from $20$ to $100$, compile time stays between $0.08$ and $0.11$\,s for the forward pass and between $0.13$ and $0.17$\,s for either backward pass.
 
 \subsection{Partial depth}\label{subsec:partial_depth}
-The experiments above run the iteration to full depth, $k = \min(N, M)$, where the reconstruction $LBR^\top = A$ provides a convenient ground truth. Applications stop much earlier: LSQR~\citep{paige1982lsqr}, partial singular value decompositions, and stochastic Lanczos quadrature for spectral sums~\citep{ubaru2017fast} all use $k \ll \min(N, M)$ steps. This section repeats the comparison in that regime and adds the two matrix-free alternatives that already come with stable adjoints.
+The experiments above run the iteration to full depth, $k = \min(N, M)$, where the reconstruction $LBR^\top = A$ provides a convenient ground truth. Applications stop much earlier: LSQR~\citep{paige1982lsqr}, partial singular value decompositions, and stochastic Lanczos quadrature for spectral sums such as $\log\det(A^\top A)$~\citep{ubaru2017fast} all use $k \ll \min(N, M)$ steps. This section repeats the comparison in that regime and adds the two matrix-free alternatives that already come with stable adjoints.
 
 \paragraph{Loss and methods.}
 We differentiate the $k$-step quadrature estimate of $v^\top \log(A^\top A)\, v$,
 \begin{align}\label{eq:slq_loss}
     \rho(A) = \|v\|^2\, e_1^\top \log(B^\top B)\, e_1 = \|v\|^2 \sum_{i=1}^{k} (e_1^\top w_i)^2 \log \sigma_i^2,
 \end{align}
-where $B = \sum_{i} \sigma_i u_i w_i^\top$ is the singular value decomposition of the bidiagonal matrix computed from the start vector $v$. Averaged over random start vectors, $\rho$ is the stochastic Lanczos quadrature estimate of $\log\det(A^\top A)$~\citep{ubaru2017fast}. Unlike the reconstruction error, it depends on every output of the iteration and is meaningful at any depth. Since $B^\top B$ equals the tridiagonal matrix $T$ produced by $k$ steps of the Lanczos iteration on $A^\top A$ with the same start vector, there are four ways to compute $\nabla_A \rho$ that agree in exact arithmetic:
+where $B = \sum_{i} \sigma_i u_i w_i^\top$ is the singular value decomposition of the bidiagonal matrix computed from the start vector $v$. Averaged over random start vectors, $\rho$ is the stochastic Lanczos quadrature estimate of $\log\det(A^\top A)$~\citep{ubaru2017fast}. Unlike the reconstruction error, the loss $\rho$ depends on every output of the iteration and is meaningful at any depth. Since $B^\top B$ equals the tridiagonal matrix $T$ produced by $k$ steps of the Lanczos iteration on $A^\top A$ with the same start vector, there are four ways to compute $\nabla_A \rho$ that agree in exact arithmetic:
 \begin{enumerate}
     \item \textit{Adjoint}: the stable adjoint of Section~\ref{subsec:stable_adjoint_system}.
     \item \textit{Autodiff}: reverse-mode automatic differentiation through the reorthonormalized iteration.
@@ -358,9 +356,9 @@ where $B = \sum_{i} \sigma_i u_i w_i^\top$ is the singular value decomposition o
 Methods 3 and 4 use the \texttt{matfree} library that accompanies \citet{kraemer2024gradients}. All four methods fully reorthonormalize in the forward pass. Appendix~\ref{app:partial_depth_setup} lists the remaining details.
 
 \paragraph{Accuracy.}
-Figure~\ref{fig:precision_sweep} measures the single-precision gradient error on $1000 \times 500$ matrices with geometrically decaying singular values, relative to a double-precision reference. The three bidiagonalization-based methods produce the same gradients, and their error grows gradually, from $4 \cdot 10^{-6}$ at $\kappa(A) = 10$ to $2 \cdot 10^{-3}$ at $\kappa(A) = 10^6$. The Lanczos adjoint on $A^\top A$ is two orders of magnitude less accurate already at $\kappa(A) = 10$, reaches $49\%$ error at $\kappa(A) = 10^4$, and returns NaNs for two of five matrices at $\kappa(A) = 10^5$ and three of five at $\kappa(A) = 10^6$, because rounding errors in products with $A^\top A$ make some Ritz values negative. The right panel shows the same mechanism as a function of depth: deeper Krylov spaces resolve smaller singular values, whose squares are lost in the rounding errors of $A^\top A$. At $\kappa(A) = 10^4$, the Lanczos error grows from $2 \cdot 10^{-4}$ at $k = 25$ to $69\%$ at $k = 300$, while the bidiagonalization-based methods stay below $2 \cdot 10^{-4}$. In double precision, all four methods agree to within $8 \cdot 10^{-8}$.
+Figure~\ref{fig:precision_sweep} measures the single-precision gradient error on $1000 \times 500$ matrices with geometrically decaying singular values, relative to a double-precision reference. The three bidiagonalization-based methods produce the same gradients, with an error that grows gradually, from $4 \cdot 10^{-6}$ at $\kappa(A) = 10$ to $2 \cdot 10^{-3}$ at $\kappa(A) = 10^6$. The Lanczos adjoint on $A^\top A$ is two orders of magnitude less accurate already at $\kappa(A) = 10$, reaches $49\%$ error at $\kappa(A) = 10^4$, and returns NaNs for two of five matrices at $\kappa(A) = 10^5$ and three of five at $\kappa(A) = 10^6$, because rounding errors in products with $A^\top A$ make some Ritz values negative. The right panel shows the same mechanism as a function of depth: deeper Krylov spaces resolve smaller singular values, whose squares are lost in the rounding errors of $A^\top A$. At $\kappa(A) = 10^4$, the Lanczos error grows from $2 \cdot 10^{-4}$ at $k = 25$ to $69\%$ at $k = 300$, while the bidiagonalization-based methods stay below $2 \cdot 10^{-4}$. In double precision, all four methods agree to within $8 \cdot 10^{-8}$.
 
-At partial depth the last residual does not vanish, and autodiff through the reorthonormalized iteration is as accurate as the adjoint, as it is at full depth in double precision; \citet[Table~2]{kraemer2024gradients} observe the same for the Arnoldi iteration. So is the augmented formulation. The case for the adjoint over these two alternatives therefore rests on cost.
+At partial depth the last residual does not vanish, and autodiff through the reorthonormalized iteration is as accurate as the adjoint, as at full depth in double precision; \citet[Table~2]{kraemer2024gradients} observe the same for the Arnoldi iteration. So is the augmented formulation. The case for the adjoint over these two alternatives therefore rests on cost.
 
 \begin{figure}[t]
     \centering
@@ -370,7 +368,7 @@ At partial depth the last residual does not vanish, and autodiff through the reo
 \end{figure}
 
 \paragraph{Memory and run time.}
-Figure~\ref{fig:partial_depth_cost} differentiates the same loss for a matrix-free operator: a one-dimensional convolution $A(\theta)v = \theta * v$ with $31$ learnable weights, mapping $\mathbb{R}^{20{,}000}$ to $\mathbb{R}^{20{,}030}$, differentiated with respect to $\theta$. The adjoint's memory grows linearly in $k$ and stays at about $1.5\times$ that of the forward pass, and its run time is $1.6$--$2.3\times$ that of the forward pass. Autodiff stores the Krylov basis at every step, so its memory grows quadratically in $k$: $12$\,GB at $k = 128$, $48$\,GB at $k = 256$, and $190$\,GB at $k = 512$, more than an 80\,GB accelerator holds, where the adjoint needs $0.25$\,GB. The augmented formulation runs $2k$ steps on vectors of length $N + M$; it needs about $4.6\times$ the adjoint's memory and is $8$--$11\times$ slower for $k \geq 64$. On this nearly square operator, the Lanczos adjoint on $A^\top A$ costs about as much as ours; its drawback is accuracy (Figure~\ref{fig:precision_sweep}).
+Figure~\ref{fig:partial_depth_cost} differentiates the same loss for a matrix-free operator: a one-dimensional convolution $A(\theta)v = \theta * v$ with $31$ learnable weights, mapping $\mathbb{R}^{20{,}000}$ to $\mathbb{R}^{20{,}030}$, differentiated with respect to $\theta$. The memory of the adjoint grows linearly in $k$ and stays at about $1.5\times$ the memory of the forward pass, and the run time of the adjoint is $1.6$--$2.3\times$ the run time of the forward pass. Autodiff stores the Krylov basis at every step, so the memory of autodiff grows quadratically in $k$: $12$\,GB at $k = 128$, $48$\,GB at $k = 256$, and $190$\,GB at $k = 512$, more than an 80\,GB accelerator holds, where the adjoint needs $0.25$\,GB. The augmented formulation runs $2k$ steps on vectors of length $N + M$ and needs about $4.6\times$ the memory and, for $k \geq 64$, $8$--$11\times$ the run time of the adjoint. On this nearly square operator, the Lanczos adjoint on $A^\top A$ costs about as much as the adjoint; the drawback of the Lanczos adjoint is accuracy (Figure~\ref{fig:precision_sweep}).
 
 \begin{figure}[t]
     \centering
@@ -380,7 +378,7 @@ Figure~\ref{fig:partial_depth_cost} differentiates the same loss for a matrix-fr
 \end{figure}
 
 \paragraph{SuiteSparse matrices.}
-\citet[Figure~3]{kraemer2024gradients} demonstrate the cost of backpropagating through the Lanczos iteration on a matrix from the SuiteSparse collection. Table~\ref{tab:suitesparse} repeats this demonstration for bidiagonalization on five rectangular SuiteSparse matrices~\citep{davis2011university,kolodziej2019suitesparse} from imaging and least-squares applications, with up to two million rows and 7.8 million nonzeros. We differentiate the loss~\eqref{eq:slq_loss} at depth $k = 100$ with respect to the nonzero values of $A$, using sparse matrix-vector products. Autodiff would need between 6\,GB and 277\,GB, so we ran it only on the smallest matrix; on the largest, \texttt{Rucci1}, it would need more than three times the memory of an 80\,GB accelerator. The adjoint needs at most 2.6\,GB, about $1.5\times$ the memory and $2\times$ the run time of the forward pass, and its gradient errors lie between $1.4 \cdot 10^{-6}$ and $6.3 \cdot 10^{-4}$. The augmented formulation is similarly accurate but needs $4$--$5\times$ the memory and $4$--$8\times$ the run time of the adjoint; on \texttt{Rucci1}, it needs 11.8\,GB. The Lanczos adjoint on $A^\top A$ is the cheapest method on tall matrices, up to $3\times$ faster than the adjoint on \texttt{Rucci1}, because it does less work. Bidiagonalization orthogonalizes every new vector against $L$, with $N$ rows, and against $R$, with $M$ rows. The Lanczos iteration on $A^\top A$ orthogonalizes only against $R$: it applies $A^\top A$ without forming $L$ in between, which saves this work but is also why it squares the condition number. On \texttt{Rucci1}, where $(N + M)/M = 19$, orthogonalization takes $12.4$\,s of our $18.9$\,s forward pass but only $0.7$\,s of the $4.4$\,s Lanczos forward pass (Table~\ref{tab:lanczos_cost} in Appendix~\ref{app:partial_depth_setup}). The gradients of the Lanczos adjoint are $17$--$32\times$ less accurate than those of the adjoint on three of the five matrices, reaching $1.4\%$ error on \texttt{ESOC}; on the other two matrices, it is as accurate as the adjoint.
+\citet[Figure~3]{kraemer2024gradients} demonstrate the cost of backpropagating through the Lanczos iteration on a matrix from the SuiteSparse collection. Table~\ref{tab:suitesparse} repeats this demonstration for bidiagonalization on five rectangular SuiteSparse matrices~\citep{davis2011university,kolodziej2019suitesparse} from imaging and least-squares applications, with up to two million rows and 7.8 million nonzeros. We differentiate the loss~\eqref{eq:slq_loss} at depth $k = 100$ with respect to the nonzero values of $A$, using sparse matrix-vector products. Autodiff would need between 6\,GB and 277\,GB, so we ran autodiff only on the smallest matrix; on the largest, \texttt{Rucci1}, autodiff would need more than three times the memory of an 80\,GB accelerator. The adjoint needs at most 2.6\,GB, about $1.5\times$ the memory and $2\times$ the run time of the forward pass, with gradient errors between $1.4 \cdot 10^{-6}$ and $6.3 \cdot 10^{-4}$. The augmented formulation is similarly accurate but needs $4$--$5\times$ the memory and $4$--$8\times$ the run time of the adjoint; on \texttt{Rucci1}, the augmented formulation needs 11.8\,GB. The Lanczos adjoint on $A^\top A$ is the cheapest method on tall matrices, up to $3\times$ faster than the adjoint on \texttt{Rucci1}, because the Lanczos iteration does less work. Bidiagonalization orthogonalizes every new vector against $L$, with $N$ rows, and against $R$, with $M$ rows. The Lanczos iteration on $A^\top A$ orthogonalizes only against $R$, because the Lanczos iteration applies $A^\top A$ without forming $L$ in between; skipping $L$ saves this work but also squares the condition number. On \texttt{Rucci1}, where $(N + M)/M = 19$, orthogonalization takes $12.4$\,s of our $18.9$\,s forward pass but only $0.7$\,s of the $4.4$\,s Lanczos forward pass (Table~\ref{tab:lanczos_cost} in Appendix~\ref{app:partial_depth_setup}). The gradients of the Lanczos adjoint are $17$--$32\times$ less accurate than the gradients of the adjoint on three of the five matrices, reaching $1.4\%$ error on \texttt{ESOC}; on the other two matrices, the Lanczos adjoint is as accurate as the adjoint.
 
 \begin{table}[t]
     \centering
@@ -393,7 +391,7 @@ Figure~\ref{fig:partial_depth_cost} differentiates the same loss for a matrix-fr
 
 \FloatBarrier
 \section{Conclusion}
-By viewing bidiagonalization as a Hessenberg factorization of an augmented symmetric matrix, we obtained a stable adjoint for it almost for free, and pruning the augmented system's zeros brought the cost back down to that of the original problem. The adjoint needs nothing beyond matrix-vector products and a reprojection step. In our experiments, its gradients were as accurate as those of automatic differentiation through the reorthonormalized iteration, at a fraction of the memory, and the reprojection step was necessary to keep them accurate in single precision. At partial depth, it was the only method we tested that combines the accuracy of differentiating through the bidiagonalization with memory linear in the depth: autodiff and the augmented formulation are accurate but expensive, and the Lanczos adjoint on $A^\top A$ is cheap but squares the condition number. On tall matrices, the Lanczos adjoint is also faster, because it orthogonalizes only against the shorter of the two bases; one-sided reorthogonalization~\citep{simon2000low} might close this gap for bidiagonalization as well. The same augment-then-prune recipe should carry over to other structured factorizations that embed into a Hessenberg or symmetric Lanczos form. We leave both directions to future work.
+By viewing bidiagonalization as a Hessenberg factorization of an augmented symmetric matrix, we obtained a stable adjoint for bidiagonalization almost for free, and pruning the zeros of the augmented system brought the cost back down to the cost of the original problem. The adjoint needs nothing beyond matrix-vector products and a reprojection step. In our experiments, the adjoint computed gradients as accurate as automatic differentiation through the reorthonormalized iteration, at a fraction of the memory, and the reprojection step was necessary to keep the gradients accurate in single precision. At partial depth, the adjoint was the only method we tested that combines the accuracy of differentiating through the bidiagonalization with memory linear in the depth: autodiff and the augmented formulation are accurate but expensive, and the Lanczos adjoint on $A^\top A$ is cheap but squares the condition number. On tall matrices, the Lanczos adjoint is also faster, because the Lanczos iteration orthogonalizes only against the shorter of the two bases; one-sided reorthogonalization~\citep{simon2000low} might close this gap for bidiagonalization as well. The same augment-then-prune recipe should carry over to other structured factorizations that embed into a Hessenberg or symmetric Lanczos form. We leave both directions to future work.
 
 \bibliographystyle{plainnat}
 \bibliography{references}
@@ -405,7 +403,7 @@ The adjoint method computes parameter gradients of losses that depend on the out
 \begin{example}[Hessenberg Factorization]
     For $s = $ \texttt{Hessenberg} we have $\theta = (A, v)$ and $x = (Q, H, r, c)$. The constraint function is the concatenation of constraints \eqref{eq:hessenberg_forward_constraint1} through \eqref{eq:hessenberg_forward_constraint5}, so $c(x, \theta) = \mathbf{0}$ exactly when $(Q, H, r, c)$ correctly Hessenberg-factorizes $(A, v)$.
 \end{example}
-Because $c(s(\theta), \theta) = \mathbf{0}$ is constantly zero, its total derivative is also zero, so the chain rule gives
+Because $c(s(\theta), \theta) = \mathbf{0}$ is constantly zero, the total derivative of $c(s(\theta), \theta)$ is also zero, so the chain rule gives
 \begin{align}
     \mathbf{0} = \frac{d}{d\theta} c(s(\theta), \theta) = \frac{\partial c}{\partial s} \frac{\partial s}{\partial \theta} + \frac{\partial c}{\partial \theta}
     \implies \frac{\partial c}{\partial s} \frac{\partial s}{\partial \theta} = -\frac{\partial c}{\partial \theta} \label{eq:exploit_constraint}
@@ -422,7 +420,7 @@ then substituting into \eqref{eq:gradient_chain_rule} yields
 \begin{align*}
     \nabla_\theta \ell(s(\theta)) = \frac{\partial s}{\partial \theta}^\top \frac{\partial c}{\partial s}^\top \boldsymbol{\lambda} = \left(\frac{\partial c}{\partial s} \frac{\partial s}{\partial \theta}\right)^\top \boldsymbol{\lambda} \overset{\eqref{eq:exploit_constraint}}{=} -\frac{\partial c}{\partial \theta}^\top \boldsymbol{\lambda}
 \end{align*}
-This is much cheaper than the direct approach. Computing $\frac{\partial s}{\partial \theta}$ directly costs $O(PX^3)$ operations (one $X \times X$ solve per parameter), whereas the adjoint approach solves a single $X \times X$ system \eqref{eq:adjoint_system} and evaluates $-\frac{\partial c}{\partial \theta}^\top \boldsymbol{\lambda}$, for $O(X^3 + XP)$ operations. When $P \ll X$, this is the difference between $O(X^3)$ and $O(PX^3)$, which is decisive in applications like neural network training or PDE-constrained optimization where $X$ is very large.
+This adjoint formula is much cheaper than the direct approach. Computing $\frac{\partial s}{\partial \theta}$ directly costs $O(PX^3)$ operations (one $X \times X$ solve per parameter), whereas the adjoint approach solves a single $X \times X$ system \eqref{eq:adjoint_system} and evaluates $-\frac{\partial c}{\partial \theta}^\top \boldsymbol{\lambda}$, for $O(X^3 + XP)$ operations. When $P \ll X$, the adjoint approach costs $O(X^3)$ instead of $O(PX^3)$, a difference that is decisive in applications like neural network training or PDE-constrained optimization where $X$ is very large.
 
 \section{Solving the adjoint system of Hessenberg factorization}\label{app:solving_adjoint_system}
 This appendix recalls how to solve the adjoint system of Section~\ref{subsec:adjoint_hessenberg} with a backward recursion, following \citet{kraemer2024gradients}.
@@ -505,7 +503,7 @@ Finally, to solve for $\lambda_i$ and $\lambda$, we look again at \eqref{eq:adjo
       h_{i, i\!-\!1} \lambda_{i\!-\!1} & \!\!i > 1
    \end{array}\!\!\bigg\} &\!= \!\nabla_{q_i} \rho + A^\top \lambda_i - \!\sum_{j=i}^{K} h_{ij} \lambda_j + Q(\Gamma + \Gamma^\top)e_i + r \gamma^\top e_i \label{eq:get_lambda_i}
 \end{align}
-We now have all equations necessary to solve for all adjoint variables. There is a part that we have not yet addressed: In \eqref{eq:get_lambda_i}, we will need access to $(\Gamma + \Gamma^\top)e_i$, however \eqref{eq:get_Gamma_i} will only give us $\Gamma^\top e_i$. How we do this is best explained with an example.
+We now have all equations necessary to solve for all adjoint variables. There is a part that we have not yet addressed: In \eqref{eq:get_lambda_i}, we will need access to $(\Gamma + \Gamma^\top)e_i$, however \eqref{eq:get_Gamma_i} will only give us $\Gamma^\top e_i$. How we obtain $(\Gamma + \Gamma^\top)e_i$ from the columns of $\Gamma^\top$ is best explained with an example.
 \begin{example}[Construction of $\Gamma + \Gamma^\top$]\label{ex:construction_Gamma_Gamma_top}
 Let $K=4$. For decreasing $i$ starting from $K$ down to $1$, the known entries in upper triangular $\Gamma^\top \in \mathbb{R}^{4 \times 4}$ will evolve as follows, where $?$ denotes unknown entries, and $0$ and $\cdot$ denotes known entries:
 \begin{align*}
@@ -539,7 +537,7 @@ Let $K=4$. For decreasing $i$ starting from $K$ down to $1$, the known entries i
     0 & 0 & 0 & \cdot \\
 \end{bmatrix} \end{array} \qquad
 \end{align*}
-This is enough information to then also determine the $i$th column of symmetric $\Gamma + \Gamma^\top$, whose entries we will uncover in the following sequence:
+These known entries are enough to determine the $i$th column of symmetric $\Gamma + \Gamma^\top$, whose entries we will uncover in the following sequence:
 \begin{align*}
     \Gamma + \Gamma^\top:
 \begin{array}{c} i = 4 \\
@@ -584,7 +582,7 @@ Use \eqref{eq:get_Gamma_i} to get $\Gamma^\top e_i$ to then get $(\Gamma + \Gamm
 This appendix proves Theorem~\ref{thm:sparsity}.
 
 \subsection{Sparsity patterns of the input gradients}\label{app:input_gradients}
-The sparsity patterns of $\nabla_{\dddot{Q}} \rho$, $\nabla_{\dddot{H}} \rho$, and $\nabla_{\dddot{r}} \rho$ match those of $\dddot{Q}, \dddot{H}, \dddot{r}$, due to the linear nature of \texttt{extract}:
+The sparsity patterns of $\nabla_{\dddot{Q}} \rho$, $\nabla_{\dddot{H}} \rho$, and $\nabla_{\dddot{r}} \rho$ match the sparsity patterns of $\dddot{Q}, \dddot{H}, \dddot{r}$, due to the linear nature of \texttt{extract}:
 \begin{align}
     \nabla_{\dddot{Q}} \rho := \begin{bmatrix}\mathbf{0} & \nabla_{l_1}\rho & \mathbf{0} & \nabla_{l_2}\rho & \cdots & \mathbf{0} & \nabla_{l_k}\rho \\ \nabla_{r_1}\rho & \mathbf{0} & \nabla_{r_2}\rho & \mathbf{0} &  \cdots & \nabla_{r_k}\rho & \mathbf{0} \end{bmatrix} \in \mathbb{R}^{(N+M) \times 2K} \label{eq:nabla_Q_sparsity_pattern}
 \end{align}
@@ -617,14 +615,14 @@ Starting from \eqref{eq:get_gamma}, replacing $K$ with $2K$, we plug in our spar
     &\preceq 
     \begin{pmatrix}* \!&\! 0 \!&\! * \!&\! 0 \!&\! \cdots \!&\! 0 \!&\! * \!&\! 0\end{pmatrix}^\top \label{eq:gamma_sparsity_pattern}
 \end{align}
-This shows that $\gamma \in \mathbb{R}^{2K}$ is alternatingly non-zero and zero, meaning it is at most $K$-dimensional. We plug this pattern into \eqref{eq:get_last_lambda}:
+This pattern shows that $\gamma \in \mathbb{R}^{2K}$ is alternatingly non-zero and zero, so $\gamma$ has at most $K$ non-zero entries. We plug this pattern into \eqref{eq:get_last_lambda}:
 \begin{align}
     \lambda_{2K} &= \nabla_{\dddot{r}} \rho + \dddot{Q} \gamma \nonumber
     \\ &\preceq \begin{pmatrix}0 \!&\! 0 \!&\! \cdots \!&\! 0 \!&\! * \!&\! * \!&\! \cdots \!&\! *\end{pmatrix}^\top + \dddot{Q} \begin{pmatrix}* \!&\! 0 \!&\! * \!&\! 0 \!&\! \cdots \!&\! 0\!&\! * \!&\! 0\end{pmatrix}^\top \nonumber
     \\
     &= \begin{pmatrix}0 \!&\! 0 \!&\! \cdots \!&\! 0 \!&\! * \!&\! * \!&\! \cdots \!&\! *\end{pmatrix}^\top \label{eq:lambda_2K_sparsity_pattern}
 \end{align}
-This shows that $\lambda_{2K} \in \mathbb{R}^{N+M}$ is $0$ in the leading $N$ entries, which also held true for the input vector $\dddot{v}$.
+This pattern shows that $\lambda_{2K} \in \mathbb{R}^{N+M}$ is $0$ in the leading $N$ entries, which also held true for the input vector $\dddot{v}$.
 \subsection{Sparsity patterns of $\Gamma^\top$ and $\Lambda$}\label{subsec:sparsity_Gamma_Lambda}
 This section proves the remainder of the theorem, namely that
 $$\begin{array}{rrll}
@@ -644,11 +642,11 @@ $$P_\Lambda(i) \!\!\implies P_\Gamma(i)$$
 $$\bigwedge_{j=i}^{2K} \big(P_\Gamma(j) \big) \!\!\implies P_\Lambda(i-1)$$
 
 The remaining equations that solve for the unknown adjoint variables $\Gamma^\top$ and $\Lambda$ are the recurrence relations \eqref{eq:get_Gamma_i} and \eqref{eq:get_lambda_i}.
-To show these, we will use strong induction backwards, starting from $i=2K$ down to $i=1$, by assuming that it holds for the current and all preceding iterations $j \in \{i, i+1, \dots, 2K\}$. The base case $i = 2K$ is already proven for even $i=2K$ in \eqref{eq:lambda_2K_sparsity_pattern}. Assuming now that the hypothesis is true for some even iteration $i$ (and all earlier iterations) we will show that it holds for the preceding $i-1$ which is odd. To close the loop, we prove that, when it holds for an odd $i$ and earlier, it will hold for the preceding $i-1$, which is even.
+To prove these two implications, we will use strong induction backwards, starting from $i=2K$ down to $i=1$, by assuming that the propositions hold for the current and all preceding iterations $j \in \{i, i+1, \dots, 2K\}$. The base case $i = 2K$ is already proven for even $i=2K$ in \eqref{eq:lambda_2K_sparsity_pattern}. Assuming now that the hypothesis is true for some even iteration $i$ (and all earlier iterations) we will show that the hypothesis holds for the preceding $i-1$ which is odd. To close the loop, we prove that, when the hypothesis holds for an odd $i$ and earlier, the hypothesis will hold for the preceding $i-1$, which is even.
 \\
 
 \subsection{Showing $P_\Lambda(i) \!\!\implies P_\Gamma(i)$}
-We move onto equation \eqref{eq:get_Gamma_i} for columns of $\Gamma^\top$. We group it into four terms (I) - (IV) and analyze them separately, recombining at the end.
+We move onto equation \eqref{eq:get_Gamma_i} for columns of $\Gamma^\top$. We group the equation into four terms (I) - (IV), analyze each term separately, and recombine the terms at the end.
 \begin{align}
     \Gamma_{ii}e_i + \Gamma^\top e_i &= - I_\geq e_i \circ \bigg[\underbrace{\dddot{Q}^\top \nabla_{\dddot{q_i}} \rho}_{(\text{I})} + \underbrace{\dddot{Q}^\top \dddot{A}^\top \lambda_i}_{(\text{II})}\bigg] + \left(\underbrace{\sum_{j=i-1}^{K} h_{ij} I_\geq e_i \circ \nabla_{\dddot{H}} \rho e_j}_{(\text{III})}\right) - \underbrace{e_1c\nabla_{c} \rho \delta_{i=1}}_{(\text{IV})}
 \end{align}
@@ -722,7 +720,7 @@ For even $i$, $\delta_{i=1} = 0$, and $$e_1c\nabla_{c} \rho \delta_{i=1} = \math
 For odd $i$, 
 $$e_1c\nabla_{c} \rho \delta_{i=1} \preceq * \cdot e_1$$
 \subsubsection{Combining Terms (I) - (IV)}
-Bringing it all together back into \eqref{eq:get_Gamma_i}, for even $i$:
+Substituting the four terms back into \eqref{eq:get_Gamma_i} gives, for even $i$:
 \begin{align*} 
 \Gamma_{ii}e_i + \Gamma^\top e_i &= -I_{\geq}e_i \circ \Big[\text{(I)} + \text{(II)}\Big] + \text{(III)}
 \\
@@ -744,11 +742,11 @@ As can be seen, even columns of $\Gamma^\top$ are exactly zero in the odd entrie
     \\
     &= I_{\geq}e_i \circ \begin{bmatrix} * & 0 & * & 0 & \cdots & * & 0\end{bmatrix} 
 \end{align*}
-In this case, the odd columns of $\Gamma^\top$ are exactly zero for the even entries. This proves $P_\Lambda(i) \implies P_\Gamma(i)$.
+In this case, the odd columns of $\Gamma^\top$ are exactly zero for the even entries. These two cases prove $P_\Lambda(i) \implies P_\Gamma(i)$.
 
 
 \subsection{Showing $\bigwedge_{j=i}^{2K} \big(P_\Gamma(j) \big) \!\!\implies P_\Lambda(i-1)$}
-For this, we consider \eqref{eq:get_lambda_i} and plug in the sparse output of $\overline{\texttt{Bidiagonalize}}_{2K}$. We again underline the main terms with roman numerals (I) - (V), which we will investigate one by one, for even and odd $i$.
+For this implication, we consider \eqref{eq:get_lambda_i} and plug in the sparse output of $\overline{\texttt{Bidiagonalize}}_{2K}$. We again underline the main terms with roman numerals (I) - (V), which we will investigate one by one, for even and odd $i$.
 \begin{align}
     \!\!\!\!\!\begin{array}{cc}
         - \lambda_0 & \!\!i = 1 \\
@@ -786,7 +784,7 @@ For odd $i$:
     \sum_{j=i}^{K} h_{ij} \lambda_j =  h_{i,i+1} \lambda_{i+1} \preceq  \begin{bmatrix} 0 & 0 & \cdots &  0 & * & * &\cdots & *\end{bmatrix} ^\top
 \end{align}
 \subsubsection{Term (IV)}
-Here we will use the sparsity of $\dddot{Q}$ shown in \eqref{eq:Q_sparsity_pattern}, and use our induction hypothesis. The assumption $\bigwedge_{j=i}^{2K} \big(P_\Gamma(j) \big)$ gives sparsity information about the $i$th column of $\Gamma + \Gamma^\top$ due to its symmetry and triangular structure of $\Gamma$. See example \ref{ex:construction_Gamma_Gamma_top} for more. For even $i$:
+Here we will use the sparsity of $\dddot{Q}$ shown in \eqref{eq:Q_sparsity_pattern}, and use our induction hypothesis. The assumption $\bigwedge_{j=i}^{2K} \big(P_\Gamma(j) \big)$ gives sparsity information about the $i$th column of $\Gamma + \Gamma^\top$ due to the symmetry of $\Gamma + \Gamma^\top$ and the triangular structure of $\Gamma$. See example \ref{ex:construction_Gamma_Gamma_top} for more. For even $i$:
 \begin{align}
     \dddot{Q}(\Gamma + \Gamma^\top)e_i &= \begin{bmatrix} \mathbf{0} & l_1 & \mathbf{0} & l_2 & \cdots & \mathbf{0} & l_k \\ 
         r_1 & \mathbf{0} & r_2 & \mathbf{0} & \cdots & r_k & \mathbf{0} \end{bmatrix} (\Gamma + \Gamma^\top)e_i
@@ -911,7 +909,7 @@ The term $\dddot{r}\,\gamma^\top e_{2n-1} = \dddot{r}\,\eta_n$, whose $M$-block 
 \end{align}
 
 \subsection{Reducing the gradient formulas}
-From \eqref{eq:adjoint_hessenberg_constraint5}, $\nabla_{\dddot{A}}\rho = \Lambda \dddot{Q}^\top$. This is an $(N{+}M) \times (N{+}M)$ matrix. Its $(1,2)$-block (the $N \times M$ part corresponding to $\nabla_A\rho$) is
+From \eqref{eq:adjoint_hessenberg_constraint5}, $\nabla_{\dddot{A}}\rho = \Lambda \dddot{Q}^\top$, an $(N{+}M) \times (N{+}M)$ matrix. The $(1,2)$-block of $\nabla_{\dddot{A}}\rho$ (the $N \times M$ part corresponding to $\nabla_A\rho$) is
 \begin{align*}
     \nabla_A\rho &= \sum_{n=1}^K \phi_n \cdot r_n^\top + l_n \cdot \xi_n^\top
 \end{align*}
@@ -930,12 +928,12 @@ From \eqref{eq:adjoint_hessenberg_constraint4}, $\nabla_c\rho = \dddot{v}^\top\l
 where we used $r_1 = cv$ from the primal constraint \eqref{eq:bidiag_forward_constraint3}.
 
 \section{Reorthonormalization and reprojection}\label{app:reprojection}
-Because Hessenberg factorization subsumes Bidiagonalization for the augmented input, the stability of the Hessenberg adjoint \citep{kraemer2024gradients} comes along with it. The mechanism is reprojection, which we describe next.
+Because Hessenberg factorization subsumes Bidiagonalization for the augmented input, the bidiagonalization adjoint inherits the stability of the Hessenberg adjoint \citep{kraemer2024gradients}. The mechanism is reprojection, which we describe next.
 
 Let $m$ be a mask vector with entries from $\{0, 1\}$. Let $L$ be an orthonormal matrix, and $q$ and $c$ be vectors. Consider a constraint of the form
 $$m \circ (L^\top q) = m \circ c$$
 that is, within the bounds of the mask $m$, the vector $q$ expressed in the basis of $L$ equals $c$.
-Given a numerical estimate $q_0$ of a solution $q$, we get an improved estimate $q_1$ by \textit{reprojecting} it against $L$:
+Given a numerical estimate $q_0$ of a solution $q$, we get an improved estimate $q_1$ by \textit{reprojecting} $q_0$ against $L$:
 \begin{align*}
     q_0 &= q_0 - L (m \circ L^\top q_0) + L (m \circ L^\top q_0)
     \\
@@ -945,7 +943,7 @@ which motivates the update step, repeated if necessary,
 \begin{align*}
     q_1 &\leftarrow q_0 - L (m \circ L^\top q_0) + L (m \circ c)
 \end{align*}
-For Hessenberg factorization the relevant constraint is $Q^\top q_i = e_i$ \eqref{eq:hessenberg_forward_constraint3}, and the reprojection step followed by normalization is what we call \textit{reorthonormalization}. For Bidiagonalization, the analogous constraints are $L^\top l_i = e_i$ \eqref{eq:bidiag_forward_constraint4} and $R^\top r_i = e_i$ \eqref{eq:bidiag_forward_constraint5}. Our forward pass applies the reorthonormalization step twice per iteration, the ``twice is enough'' rule of \citet{golub2013matrix}. In the backward pass, the reprojection constraints \eqref{eq:stable_system_reprojL}--\eqref{eq:stable_system_reprojR} take the form $m \circ (L^\top q) = m \circ c$ with known right-hand sides, and our implementation applies the reprojection step once per iteration to each new adjoint vector $\phi_n$ and $\xi_n$. Figure~\ref{fig:reorthogonalization} shows that both corrections are necessary in single precision. Without reorthonormalization, the forward pass loses the reconstruction $LBR^\top \approx A$, with an error of $0.4$ already at $n = 8$, while the reorthonormalized forward pass stays below $10^{-7}$ (left). Without reprojection, the adjoint's error grows from $5 \cdot 10^{-4}$ at $n = 32$ to $2 \cdot 10^{8}$ at $n = 120$, while the reprojection-corrected adjoint stays below $1.5 \cdot 10^{-6}$ (right).
+For Hessenberg factorization the relevant constraint is $Q^\top q_i = e_i$ \eqref{eq:hessenberg_forward_constraint3}, and the reprojection step followed by normalization is what we call \textit{reorthonormalization}. For Bidiagonalization, the analogous constraints are $L^\top l_i = e_i$ \eqref{eq:bidiag_forward_constraint4} and $R^\top r_i = e_i$ \eqref{eq:bidiag_forward_constraint5}. Our forward pass applies the reorthonormalization step twice per iteration, the ``twice is enough'' rule of \citet{golub2013matrix}. In the backward pass, the reprojection constraints \eqref{eq:stable_system_reprojL}--\eqref{eq:stable_system_reprojR} take the form $m \circ (L^\top q) = m \circ c$ with known right-hand sides, and our implementation applies the reprojection step once per iteration to each new adjoint vector $\phi_n$ and $\xi_n$. Figure~\ref{fig:reorthogonalization} shows that both corrections are necessary in single precision. Without reorthonormalization, the forward pass loses the reconstruction $LBR^\top \approx A$, with an error of $0.4$ already at $n = 8$, while the reorthonormalized forward pass stays below $10^{-7}$ (left). Without reprojection, the error of the adjoint grows from $5 \cdot 10^{-4}$ at $n = 32$ to $2 \cdot 10^{8}$ at $n = 120$, while the reprojection-corrected adjoint stays below $1.5 \cdot 10^{-6}$ (right).
 
 \begin{figure}[t]
     \centering
@@ -955,7 +953,7 @@ For Hessenberg factorization the relevant constraint is $Q^\top q_i = e_i$ \eqre
 \end{figure}
 
 \section{Alternative derivations}\label{app:alt}
-For completeness, we record the classic forward constraints of Bidiagonalization and the associated adjoint system written out column by column. These are equivalent to the stable system of section~\ref{subsec:stable_adjoint_system} but are stated directly in the original coordinates rather than derived through the augmented Hessenberg detour.
+For completeness, we record the classic forward constraints of Bidiagonalization and the associated adjoint system written out column by column. These constraints are equivalent to the stable system of section~\ref{subsec:stable_adjoint_system} but are stated directly in the original coordinates rather than derived through the augmented Hessenberg detour.
 
 \subsection{Columnwise expanded unstable adjoint}\label{app:columnwise}
 Define $b_n\lambda_{n+1} := \mathbf{0}$ and $b_0\rho_0:=\mathbf{0}$
@@ -1013,22 +1011,22 @@ c \nabla c &= r_1^\top\kappa
 \end{align}
 
 \section{Experimental setup}\label{app:setup}
-All experiments ran on the CPU of an Apple M1 Pro with 16\,GB of memory, using JAX 0.11.2. Every experiment script stores its raw measurements in the \texttt{results} directory of the code, from which \texttt{plot\_figures.py} draws all figures and tables.
+All experiments ran on the CPU of an Apple M1 Pro with 16\,GB of memory, using JAX 0.11.2. Every experiment script stores raw measurements in the \texttt{results} directory of the code, from which \texttt{plot\_figures.py} draws all figures and tables.
 
 \subsection{Full depth}\label{app:full_depth_setup}
-Whenever forward reorthonormalization is enabled, our implementation applies two reorthonormalization passes per Krylov step, the ``twice is enough'' rule of \citet{golub2013matrix}. Autodiff differentiates through whatever the forward pass does. The adjoint always runs the reorthonormalized forward pass; ``no reproj.''\ turns off the reprojection step in its backward pass. Gradient accuracy is measured by bidiagonalizing $A$ with $k = \min(N, M)$ steps from a standard normal start vector, reconstructing $LBR^\top$, and reporting the RMS error $\|\partial(LBR^\top)/\partial A - I\|_{\mathrm{rms}}$ of the Jacobian, which we compute by reverse-mode differentiation of the reconstruction. Figure~\ref{fig:full_depth_accuracy} uses dense random normal $n \times n$ matrices in double precision (left) and symmetric Toeplitz matrices $C_{ij} = 1/(1 + |i - j|)$ in single precision (right; symmetric positive-definite, with $\kappa(C) \approx 15$ at $n = 40$). Figure~\ref{fig:reorthogonalization} uses the same Toeplitz matrices for the forward reconstruction error $\|A - LBR^\top\|_{\mathrm{rms}}$ (left) and dense random normal $n \times (n/2)$ matrices with $k = n/2$ in single precision (right). For Figure~\ref{fig:full_depth_cost}, the loss is a fixed random linear combination of all outputs $(L, R, B, r, c)$ in single precision. Compile time is the wall-clock time of lowering and compiling the forward pass or its vector-Jacobian product with \texttt{jax.jit}, for a diagonal $950 \times 950$ operator. Run time is the median over five runs after a warm-up run, for dense random normal $n \times n$ matrices with $k = n$; autodiff was not run where XLA's buffer assignment for the value and gradient exceeded 8\,GB, half of the machine's memory.
+Whenever forward reorthonormalization is enabled, our implementation applies two reorthonormalization passes per Krylov step, the ``twice is enough'' rule of \citet{golub2013matrix}. Autodiff differentiates through whatever the forward pass does. The adjoint always runs the reorthonormalized forward pass; ``no reproj.''\ turns off the reprojection step in the backward pass of the adjoint. Gradient accuracy is measured by bidiagonalizing $A$ with $k = \min(N, M)$ steps from a standard normal start vector, reconstructing $LBR^\top$, and reporting the RMS error $\|\partial(LBR^\top)/\partial A - I\|_{\mathrm{rms}}$ of the Jacobian, which we compute by reverse-mode differentiation of the reconstruction. Figure~\ref{fig:full_depth_accuracy} uses dense random normal $n \times n$ matrices in double precision (left) and symmetric Toeplitz matrices $C_{ij} = 1/(1 + |i - j|)$ in single precision (right; symmetric positive-definite, with $\kappa(C) \approx 15$ at $n = 40$). Figure~\ref{fig:reorthogonalization} uses the same Toeplitz matrices for the forward reconstruction error $\|A - LBR^\top\|_{\mathrm{rms}}$ (left) and dense random normal $n \times (n/2)$ matrices with $k = n/2$ in single precision (right). For Figure~\ref{fig:full_depth_cost}, the loss is a fixed random linear combination of all outputs $(L, R, B, r, c)$ in single precision. Compile time is the wall-clock time of lowering and compiling the forward pass or the vector-Jacobian product of the forward pass with \texttt{jax.jit}, for a diagonal $950 \times 950$ operator. Run time is the median over five runs after a warm-up run, for dense random normal $n \times n$ matrices with $k = n$; autodiff was not run where XLA's buffer assignment for the value and gradient exceeded 8\,GB, half of the machine's memory.
 
 \subsection{Partial depth}\label{app:partial_depth_setup}
-All partial-depth experiments evaluate the loss~\eqref{eq:slq_loss} in single precision (float32) and differentiate it with the four methods of Section~\ref{subsec:partial_depth}. The bidiagonalization-based methods evaluate~\eqref{eq:slq_loss} through the singular value decomposition of $B$; the Lanczos method evaluates $\|v\|^2 e_1^\top \log(T)\, e_1$ through the eigendecomposition of $T$. For the augmented formulation, we read $\alpha_i$ and $\beta_i$ off the averaged super- and subdiagonals of the $2k \times 2k$ Hessenberg matrix. Methods 3 and 4 call \texttt{tridiag\_sym} and \texttt{hessenberg} from \texttt{matfree} 0.6.2 with full reorthogonalization and custom gradients; \texttt{matfree} implements reorthogonalized Lanczos through its Arnoldi code.
+All partial-depth experiments evaluate the loss~\eqref{eq:slq_loss} in single precision (float32) and differentiate the loss with the four methods of Section~\ref{subsec:partial_depth}. The bidiagonalization-based methods evaluate~\eqref{eq:slq_loss} through the singular value decomposition of $B$; the Lanczos method evaluates $\|v\|^2 e_1^\top \log(T)\, e_1$ through the eigendecomposition of $T$. For the augmented formulation, we read $\alpha_i$ and $\beta_i$ off the averaged super- and subdiagonals of the $2k \times 2k$ Hessenberg matrix. Methods 3 and 4 call \texttt{tridiag\_sym} and \texttt{hessenberg} from \texttt{matfree} 0.6.2 with full reorthogonalization and custom gradients; \texttt{matfree} implements reorthogonalized Lanczos through the \texttt{matfree} Arnoldi code.
 
 \paragraph{Accuracy (Figure~\ref{fig:precision_sweep}).}
 We draw $A = U \operatorname{diag}(s) V^\top \in \mathbb{R}^{1000 \times 500}$ with $U$ and $V$ from the QR decompositions of standard normal matrices and $s_i = \kappa^{-(i-1)/499}$, round $A$ to float32, and draw a standard normal start vector $v$; five seeds per configuration. The reference is the double-precision adjoint applied to the rounded matrix, so the reported errors measure arithmetic errors rather than the rounding of $A$. In double precision, the three other methods agree with the reference to within $1.3 \cdot 10^{-12}$ (autodiff), $3.2 \cdot 10^{-11}$ (augmented Arnoldi), and $7.9 \cdot 10^{-8}$ (Lanczos on $A^\top A$, at $\kappa(A) = 10^6$). We report $\|g - g_{\mathrm{ref}}\| / \|g_{\mathrm{ref}}\|$ for the gradient $g$ with respect to all entries of $A$. The left panel uses $k = 250$ and $\kappa(A) \in \{10^1, 10^{1.5}, \ldots, 10^6\}$; the right panel uses $\kappa(A) = 10^4$ and $k \in \{25, 50, 100, 150, 200, 250, 300\}$.
 
 \paragraph{Memory and run time (Figure~\ref{fig:partial_depth_cost}).}
-The operator is $A(\theta) v = \theta * v$ (full discrete convolution) with $\theta = e_{16} + 0.1\, \xi$ for standard normal $\xi \in \mathbb{R}^{31}$, and $v$ is standard normal. Memory is the sum of argument, output, and temporary buffer sizes that XLA assigns to the compiled value-and-gradient program. Because this number is available after compilation, we also report it for programs that would not fit into memory. Run times are medians over three runs after a warm-up run; programs above $12$\,GB were not run. Before running the experiments, all four gradient methods agreed to within $2.4 \cdot 10^{-6}$ on a smaller instance ($n = 2000$, $k = 16$).
+The operator is $A(\theta) v = \theta * v$ (full discrete convolution) with $\theta = e_{16} + 0.1\, \xi$ for standard normal $\xi \in \mathbb{R}^{31}$, and $v$ is standard normal. Memory is the sum of argument, output, and temporary buffer sizes that XLA assigns to the compiled value-and-gradient program. Because this number is available after compilation, we also report the memory for programs that would not fit into memory. Run times are medians over three runs after a warm-up run; programs above $12$\,GB were not run. Before running the experiments, all four gradient methods agreed to within $2.4 \cdot 10^{-6}$ on a smaller instance ($n = 2000$, $k = 16$).
 
 \paragraph{SuiteSparse matrices (Table~\ref{tab:suitesparse}).}
-We use the matrices \texttt{Kemelmacher}, \texttt{tomographic1}, \texttt{image\_interp}, \texttt{ESOC}, and \texttt{Rucci1} from the SuiteSparse collection~\citep{davis2011university,kolodziej2019suitesparse}, scale their nonzero values to $\max_{ij} |a_{ij}| = 1$, and round them to float32. Products with $A$ and $A^\top$ are segment sums over the nonzeros, and we differentiate with respect to the vector of nonzero values. The start vector is $v = A^\top u$ for a standard normal $u$, treated as a constant; it keeps the Krylov space inside the row space of $A$ and thereby avoids zero Ritz values for rank-deficient matrices. The reference is the double-precision adjoint on the float32 matrix. Memory is measured as for Figure~\ref{fig:partial_depth_cost}. Programs above 8\,GB, half of the machine's memory, were not run; run times are medians over three runs after a warm-up run, or a single run for programs that take longer than five seconds.
+We use the matrices \texttt{Kemelmacher}, \texttt{tomographic1}, \texttt{image\_interp}, \texttt{ESOC}, and \texttt{Rucci1} from the SuiteSparse collection~\citep{davis2011university,kolodziej2019suitesparse}, scale the nonzero values of each matrix to $\max_{ij} |a_{ij}| = 1$, and round the scaled values to float32. Products with $A$ and $A^\top$ are segment sums over the nonzeros, and we differentiate with respect to the vector of nonzero values. The start vector is $v = A^\top u$ for a standard normal $u$, treated as a constant; this start vector keeps the Krylov space inside the row space of $A$ and thereby avoids zero Ritz values for rank-deficient matrices. The reference is the double-precision adjoint on the float32 matrix. Memory is measured as for Figure~\ref{fig:partial_depth_cost}. Programs above 8\,GB, half of the machine's memory, were not run; run times are medians over three runs after a warm-up run, or a single run for programs that take longer than five seconds.
 
 \paragraph{Where the run time goes (Table~\ref{tab:lanczos_cost}).}
 To compare the work of bidiagonalization and of the Lanczos iteration on $A^\top A$, we timed the $k$-step forward passes of both, with and without full reorthogonalization, on the convolution operator of Figure~\ref{fig:partial_depth_cost} ($k = 128$) and on the matrices of Table~\ref{tab:suitesparse} ($k = 100$). The difference between the two run times is the time spent orthogonalizing. Without reorthogonalization, \texttt{matfree} runs the three-term Lanczos recurrence. Per step, bidiagonalization orthogonalizes against $L$ and $R$, with $N$ and $M$ rows, whereas the Lanczos iteration on $A^\top A$ orthogonalizes against one basis with $M$ rows. The ratio of the orthogonalization times follows the ratio $(N + M)/M$ of the basis sizes. The time without reorthogonalization, mostly matrix-vector products, also differs between the two methods but by less.
@@ -1038,7 +1036,7 @@ To compare the work of bidiagonalization and of the Lanczos iteration on $A^\top
     \small
     \setlength{\tabcolsep}{4pt}
     \input{table_lanczos_cost.tex}
-    \caption{CPU time in seconds of the $k$-step forward pass of bidiagonalization and of the Lanczos iteration on $A^\top A$, both with full reorthogonalization (``total''), and the part of it spent orthogonalizing (``orthog.''), measured as the difference to the run time without reorthogonalization. The last column is the ratio of the two orthogonalization times.}
+    \caption{CPU time in seconds of the $k$-step forward pass of bidiagonalization and of the Lanczos iteration on $A^\top A$, both with full reorthogonalization (``total''), and the part of the total spent orthogonalizing (``orthog.''), measured as the difference to the run time without reorthogonalization. The last column is the ratio of the two orthogonalization times.}
     \label{tab:lanczos_cost}
 \end{table}
 
