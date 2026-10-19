@@ -33,8 +33,6 @@ data
 *.nlo
 *.nls
 *.out
-# only ignore the paper doc -- Figure PDFs should stay
-latex/document.pdf  
 *.pyg
 *.run.xml
 *.snm
